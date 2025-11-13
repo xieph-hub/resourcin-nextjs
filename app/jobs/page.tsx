@@ -38,7 +38,7 @@ export default function Page() {
             <button className="rounded-pill bg-brand-green text-white px-4 py-2">Search</button>
           </div>
           <p className="text-xs text-slate-500 mt-3">
-            TODO: Connect to your ATS API. Example endpoint scaffold available at <code>/api/jobs</code>.
+            We are putting finishing touches to our intuitive job board at <code>/api/jobs</code>.
           </p>
         </div>
       </Container>
