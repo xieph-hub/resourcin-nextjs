@@ -8,7 +8,7 @@ export type CMSPost = {
   slug: string;
   title: string;
   excerpt?: string;
-  date?: string;       // ISO
+  date?: string; // ISO
   category?: string;
   cover?: string;
   html?: string;
@@ -35,16 +35,23 @@ export async function getAllPostsCMS(): Promise<CMSPost[]> {
   const notion = new Client({ auth: process.env.NOTION_TOKEN! });
   const dbId = process.env.NOTION_DATABASE_ID!;
 
-  // No explicit sort (DB may not have a "Date" property)
+  // No explicit sort; some DBs may not have a Date property
   const res = await notion.databases.query({ database_id: dbId });
 
   const posts: CMSPost[] = res.results.map((page: any) => {
     const props = page.properties || {};
-    const title = props?.Title?.title?.[0]?.plain_text ?? "Untitled";
+
+    const title =
+      props?.Title?.title?.[0]?.plain_text ??
+      props?.Name?.title?.[0]?.plain_text ??
+      "Untitled";
+
     const slug =
       props?.Slug?.rich_text?.[0]?.plain_text ??
       title.toLowerCase().replace(/\s+/g, "-");
+
     const excerpt = props?.Excerpt?.rich_text?.[0]?.plain_text ?? "";
+
     const category =
       props?.Category?.select?.name ??
       props?.Category?.rich_text?.[0]?.plain_text ??
@@ -54,7 +61,7 @@ export async function getAllPostsCMS(): Promise<CMSPost[]> {
     const dateRaw = props?.Date?.date?.start ?? page.last_edited_time;
     const dateISO = toISO(dateRaw);
 
-    // Cover: page cover first, property second
+    // Cover priority: page cover → Cover (files) → CoverURL(Optional) URL/rich_text
     let cover: string | undefined;
     if (page.cover?.external?.url) cover = page.cover.external.url;
     else if (page.cover?.file?.url) cover = page.cover.file.url;
@@ -63,11 +70,18 @@ export async function getAllPostsCMS(): Promise<CMSPost[]> {
       if (files[0]?.external?.url) cover = files[0].external.url;
       if (files[0]?.file?.url) cover = files[0].file.url;
     }
+    if (!cover) {
+      const urlProp = props?.["CoverURL(Optional)"];
+      if (urlProp?.url) cover = urlProp.url;
+      const rt = urlProp?.rich_text;
+      if (!cover && Array.isArray(rt) && rt[0]?.plain_text) {
+        cover = rt[0].plain_text;
+      }
+    }
 
     return { slug, title, excerpt, category, date: dateISO, cover };
   });
 
-  // Sort newest first
   posts.sort((a, b) => Date.parse(b.date || "") - Date.parse(a.date || ""));
   return posts;
 }
@@ -78,8 +92,11 @@ export async function getPostCMS(
   if (!hasNotion) {
     const file = getFromFiles(slug);
     if (!file) return null;
+
+    // marked@12 parse may be async
     const htmlParsed = await marked.parse(file.content ?? "");
     const html = typeof htmlParsed === "string" ? htmlParsed : String(htmlParsed);
+
     return { frontmatter: file.frontmatter, html };
   }
 
@@ -96,7 +113,7 @@ export async function getPostCMS(
   const page = found.results[0] as any;
   if (!page) return null;
 
-  // --- Fetch all blocks (recursively up to depth 2 to handle toggles/lists/code) ---
+  // --- Fetch blocks recursively (depth 2) ---
   async function fetchChildren(blockId: string, depth = 0): Promise<any[]> {
     const out: any[] = [];
     let cursor: string | undefined;
@@ -111,7 +128,6 @@ export async function getPostCMS(
     } while (cursor);
 
     if (depth < 2) {
-      // recursively fetch children for blocks that have them
       for (const b of out) {
         if ((b as any).has_children) {
           (b as any)._children = await fetchChildren(b.id, depth + 1);
@@ -123,17 +139,25 @@ export async function getPostCMS(
 
   const blocks = await fetchChildren(page.id);
 
+  const esc = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
   const plain = (rt: any[] = []) => rt.map((t: any) => t?.plain_text ?? "").join("");
 
-  // Group adjacent list items into <ul>/<ol>
   function renderBlocks(bs: any[]): string {
     const html: string[] = [];
-    let inUL = false;
-    let inOL = false;
+    let inUL = false,
+      inOL = false;
 
     const closeLists = () => {
-      if (inUL) { html.push("</ul>"); inUL = false; }
-      if (inOL) { html.push("</ol>"); inOL = false; }
+      if (inUL) {
+        html.push("</ul>");
+        inUL = false;
+      }
+      if (inOL) {
+        html.push("</ol>");
+        inOL = false;
+      }
     };
 
     for (const b of bs) {
@@ -141,8 +165,8 @@ export async function getPostCMS(
       const o = (b as any)[t];
       if (!o) continue;
 
-      const openChildren = (kids?: any[]) =>
-        kids && kids.length ? `<div>${renderBlocks(kids)}</div>` : "";
+      const kids = (b as any)._children as any[] | undefined;
+      const openKids = kids && kids.length ? `<div>${renderBlocks(kids)}</div>` : "";
 
       switch (t) {
         case "paragraph":
@@ -166,13 +190,21 @@ export async function getPostCMS(
           break;
 
         case "bulleted_list_item":
-          if (!inUL) { closeLists(); html.push("<ul>"); inUL = true; }
-          html.push(`<li>${plain(o.rich_text)}${openChildren((b as any)._children)}</li>`);
+          if (!inUL) {
+            closeLists();
+            html.push("<ul>");
+            inUL = true;
+          }
+          html.push(`<li>${plain(o.rich_text)}${openKids}</li>`);
           break;
 
         case "numbered_list_item":
-          if (!inOL) { closeLists(); html.push("<ol>"); inOL = true; }
-          html.push(`<li>${plain(o.rich_text)}${openChildren((b as any)._children)}</li>`);
+          if (!inOL) {
+            closeLists();
+            html.push("<ol>");
+            inOL = true;
+          }
+          html.push(`<li>${plain(o.rich_text)}${openKids}</li>`);
           break;
 
         case "quote":
@@ -182,13 +214,12 @@ export async function getPostCMS(
 
         case "callout": {
           closeLists();
-          const text = plain(o.rich_text);
           const icon =
-            o.icon?.emoji ? o.icon.emoji :
-            o.icon?.type === "external" ? "💡" :
-            o.icon?.type === "file" ? "💡" : "";
+            o.icon?.emoji ? o.icon.emoji : o.icon?.type ? "💡" : "";
           html.push(
-            `<div class="notion-callout"><span class="notion-callout-icon">${icon}</span><div>${text}</div>${openChildren((b as any)._children)}</div>`
+            `<div class="notion-callout"><span class="notion-callout-icon">${icon}</span><div>${plain(
+              o.rich_text
+            )}</div>${openKids}</div>`
           );
           break;
         }
@@ -196,16 +227,16 @@ export async function getPostCMS(
         case "toggle":
           closeLists();
           html.push(
-            `<details><summary>${plain(o.rich_text)}</summary>${openChildren((b as any)._children)}</details>`
+            `<details><summary>${plain(o.rich_text)}</summary>${openKids}</details>`
           );
           break;
 
         case "to_do":
           closeLists();
           html.push(
-            `<div class="notion-todo"><input type="checkbox" disabled ${o.checked ? "checked" : ""}/> <span>${plain(
-              o.rich_text
-            )}</span></div>`
+            `<div class="notion-todo"><input type="checkbox" disabled ${
+              o.checked ? "checked" : ""
+            }/> <span>${plain(o.rich_text)}</span></div>`
           );
           break;
 
@@ -213,7 +244,9 @@ export async function getPostCMS(
           closeLists();
           const lang = o.language || "text";
           const code = o.rich_text?.map((r: any) => r.plain_text).join("") ?? "";
-          html.push(`<pre><code class="language-${lang}">${code.replace(/</g, "&lt;")}</code></pre>`);
+          html.push(
+            `<pre><code class="language-${lang}">${esc(code)}</code></pre>`
+          );
           break;
         }
 
@@ -221,11 +254,12 @@ export async function getPostCMS(
           closeLists();
           const src = o.type === "external" ? o.external?.url : o.file?.url;
           const cap = plain(o.caption || []);
-          if (src) {
+          if (src)
             html.push(
-              `<figure><img src="${src}" alt="${cap || ""}"/><figcaption>${cap || ""}</figcaption></figure>`
+              `<figure><img src="${src}" alt="${
+                cap || ""
+              }"/><figcaption>${cap || ""}</figcaption></figure>`
             );
-          }
           break;
         }
 
@@ -234,8 +268,34 @@ export async function getPostCMS(
           html.push("<hr/>");
           break;
 
+        // Extras
+        case "bookmark": {
+          closeLists();
+          const url = o.url;
+          html.push(
+            `<p><a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a></p>`
+          );
+          break;
+        }
+
+        case "table": {
+          closeLists();
+          const rows = kids || [];
+          html.push("<table>");
+          for (const row of rows) {
+            const cells = (row as any).table_row?.cells || [];
+            html.push("<tr>");
+            for (const cell of cells) {
+              const text = plain(cell);
+              html.push(`<td>${esc(text)}</td>`);
+            }
+            html.push("</tr>");
+          }
+          html.push("</table>");
+          break;
+        }
+
         default:
-          // Fallback: render any rich_text as a paragraph
           if ((o as any)?.rich_text) {
             closeLists();
             html.push(`<p>${plain(o.rich_text)}</p>`);
@@ -246,15 +306,42 @@ export async function getPostCMS(
     return html.join("\n");
   }
 
-  const contentHTML = renderBlocks(blocks);
+  let html = renderBlocks(blocks);
 
-  // Fallback: if page body is empty, try a 'Content' property (rich_text) if you used one
-  let finalHTML = contentHTML && contentHTML.trim().length > 0 ? contentHTML : "";
-  if (!finalHTML) {
+  // Fallbacks if the page body is empty:
+  if (!html || html.trim().length === 0) {
     const props = page.properties || {};
-    const rich = props?.Content?.rich_text || props?.Body?.rich_text || [];
-    const txt = plain(rich);
-    if (txt) finalHTML = `<p>${txt.replace(/\n/g, "<br/>")}</p>`;
+
+    // Try your exact property and common alternates as rich_text
+    const tryRich = (...keys: string[]) => {
+      for (const k of keys) {
+        const p = props?.[k];
+        const rt = p?.rich_text;
+        if (Array.isArray(rt) && rt.length) {
+          const txt = rt.map((t: any) => t?.plain_text ?? "").join("");
+          if (txt && txt.trim())
+            return `<p>${txt.replace(/\n/g, "<br/>")}</p>`;
+        }
+      }
+      return "";
+    };
+
+    // 1) Your exact field
+    html = tryRich("Content (paste into Notion page body)");
+
+    // 2) Common alternates
+    if (!html) html = tryRich("Content", "Body");
+
+    // 3) If it’s a URL field, link it
+    if (!html) {
+      const url =
+        props?.["Content (paste into Notion page body)"]?.url ??
+        props?.Content?.url ??
+        props?.Body?.url;
+      if (url) {
+        html = `<p><a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a></p>`;
+      }
+    }
   }
 
   const props = page.properties || {};
@@ -268,8 +355,14 @@ export async function getPostCMS(
       props?.Category?.rich_text?.[0]?.plain_text ??
       undefined,
     date: props?.Date?.date?.start ?? page.last_edited_time ?? undefined,
-    cover: page.cover?.external?.url || page.cover?.file?.url || undefined,
+    cover:
+      page.cover?.external?.url ||
+      page.cover?.file?.url ||
+      props?.["CoverURL(Optional)"]?.url ||
+      (Array.isArray(props?.["CoverURL(Optional)"]?.rich_text) &&
+        props?.["CoverURL(Optional)"]?.rich_text?.[0]?.plain_text) ||
+      undefined,
   };
 
-  return { frontmatter, html: finalHTML };
+  return { frontmatter, html };
 }
