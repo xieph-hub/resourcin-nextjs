@@ -20,7 +20,7 @@ export async function generateMetadata(
     post.frontmatter?.excerpt ||
     "Expert insight from Resourcin on HR, talent, and the future of work.";
   const url = `${SITE_URL}/insights/${params.slug}`;
-  const og = post.frontmatter?.cover || "/og-default.jpg";
+  const og = post.frontmatter?.cover || "/api/og";
 
   return {
     title,
@@ -51,7 +51,7 @@ export default async function Page({ params }: { params: { slug: string } }) {
   const date = frontmatter?.date ? new Date(frontmatter.date).toLocaleDateString() : null;
   const cover = typeof frontmatter?.cover === "string" ? frontmatter.cover : undefined;
 
-  // Optional JSON-LD
+  // Optional: JSON-LD for Article rich results
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Article",
