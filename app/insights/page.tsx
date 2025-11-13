@@ -1,12 +1,13 @@
 import Container from "@/components/Container";
 import Link from "next/link";
 import Image from "next/image";
-import { getAllPosts } from "@/lib/insights";
+import { getAllPostsCMS } from "@/lib/cms";
 
-export const dynamic = "force-static";
+export const dynamic = "force-dynamic"; // fetch from Notion at request time
 
-export default function Page() {
-  const posts = getAllPosts();
+export default async function Page() {
+  const posts = await getAllPostsCMS();
+
   return (
     <section className="py-12 md:py-20 bg-white border-y">
       <Container>
@@ -16,8 +17,12 @@ export default function Page() {
         </p>
 
         <div className="mt-8 grid md:grid-cols-3 gap-6">
-          {posts.map(p => (
-            <Link key={p.slug} href={`/insights/${p.slug}`} className="rounded-2xl border border-slate-200 hover:shadow-soft transition block">
+          {posts.map((p) => (
+            <Link
+              key={p.slug}
+              href={`/insights/${p.slug}`}
+              className="rounded-2xl border border-slate-200 hover:shadow-soft transition block"
+            >
               {p.cover && (
                 <div className="relative w-full h-40 rounded-t-2xl overflow-hidden">
                   <Image src={p.cover} alt={p.title} fill className="object-cover" />
@@ -32,12 +37,6 @@ export default function Page() {
               </div>
             </Link>
           ))}
-        </div>
-
-        <div className="mt-6">
-          <a href="/insights" className="inline-flex items-center gap-2 px-4 py-2 rounded-pill bg-brand-blue text-white shadow-soft">
-            Read Our Latest Articles
-          </a>
         </div>
       </Container>
     </section>
