@@ -78,15 +78,9 @@ export async function getPostCMS(
   if (!hasNotion) {
     const file = getFromFiles(slug);
     if (!file) return null;
-
-    // marked.parse can be Promise<string> in v12
     const htmlParsed = await marked.parse(file.content ?? "");
     const html = typeof htmlParsed === "string" ? htmlParsed : String(htmlParsed);
-
-    return {
-      frontmatter: file.frontmatter,
-      html,
-    };
+    return { frontmatter: file.frontmatter, html };
   }
 
   const notion = new Client({ auth: process.env.NOTION_TOKEN! });
@@ -102,95 +96,173 @@ export async function getPostCMS(
   const page = found.results[0] as any;
   if (!page) return null;
 
-  // Pull blocks for content
-  const blocks: any[] = [];
-  let cursor: string | undefined;
-  do {
-    const r = await notion.blocks.children.list({
-      block_id: page.id,
-      start_cursor: cursor,
-    });
-    blocks.push(...r.results);
-    cursor = r.has_more ? (r.next_cursor as string) : undefined;
-  } while (cursor);
+  // --- Fetch all blocks (recursively up to depth 2 to handle toggles/lists/code) ---
+  async function fetchChildren(blockId: string, depth = 0): Promise<any[]> {
+    const out: any[] = [];
+    let cursor: string | undefined;
+    do {
+      const r = await notion.blocks.children.list({
+        block_id: blockId,
+        start_cursor: cursor,
+        page_size: 100,
+      });
+      out.push(...r.results);
+      cursor = r.has_more ? (r.next_cursor as string) : undefined;
+    } while (cursor);
 
-  function plain(rt: any[] = []): string {
-    return rt.map((t: any) => t?.plain_text ?? "").join("");
+    if (depth < 2) {
+      // recursively fetch children for blocks that have them
+      for (const b of out) {
+        if ((b as any).has_children) {
+          (b as any)._children = await fetchChildren(b.id, depth + 1);
+        }
+      }
+    }
+    return out;
   }
 
-  // Very simple block → HTML mapping (extend later if needed)
-  const htmlParts: string[] = [];
-  let inBulleted = false;
-  let inNumbered = false;
+  const blocks = await fetchChildren(page.id);
 
-  const closeLists = () => {
-    if (inBulleted) {
-      htmlParts.push("</ul>");
-      inBulleted = false;
-    }
-    if (inNumbered) {
-      htmlParts.push("</ol>");
-      inNumbered = false;
-    }
-  };
+  const plain = (rt: any[] = []) => rt.map((t: any) => t?.plain_text ?? "").join("");
 
-  for (const b of blocks) {
-    const t = b.type;
-    const o = (b as any)[t];
-    if (!o) continue;
+  // Group adjacent list items into <ul>/<ol>
+  function renderBlocks(bs: any[]): string {
+    const html: string[] = [];
+    let inUL = false;
+    let inOL = false;
 
-    if (t === "paragraph") {
-      closeLists();
-      htmlParts.push(`<p>${plain(o.rich_text)}</p>`);
-    } else if (t === "heading_1") {
-      closeLists();
-      htmlParts.push(`<h1>${plain(o.rich_text)}</h1>`);
-    } else if (t === "heading_2") {
-      closeLists();
-      htmlParts.push(`<h2>${plain(o.rich_text)}</h2>`);
-    } else if (t === "heading_3") {
-      closeLists();
-      htmlParts.push(`<h3>${plain(o.rich_text)}</h3>`);
-    } else if (t === "bulleted_list_item") {
-      if (!inBulleted) {
-        closeLists();
-        htmlParts.push("<ul>");
-        inBulleted = true;
-      }
-      htmlParts.push(`<li>${plain(o.rich_text)}</li>`);
-    } else if (t === "numbered_list_item") {
-      if (!inNumbered) {
-        closeLists();
-        htmlParts.push("<ol>");
-        inNumbered = true;
-      }
-      htmlParts.push(`<li>${plain(o.rich_text)}</li>`);
-    } else if (t === "quote") {
-      closeLists();
-      htmlParts.push(`<blockquote>${plain(o.rich_text)}</blockquote>`);
-    } else if (t === "divider") {
-      closeLists();
-      htmlParts.push(`<hr/>`);
-    } else if (t === "image") {
-      closeLists();
-      const src = o.type === "external" ? o.external.url : o.file.url;
-      const cap = plain(o.caption || []);
-      htmlParts.push(
-        `<figure><img src="${src}" alt="${cap || ""}"/><figcaption>${cap || ""}</figcaption></figure>`
-      );
-    } else {
-      // Fallback: treat as paragraph if rich_text exists
-      if (o.rich_text) {
-        closeLists();
-        htmlParts.push(`<p>${plain(o.rich_text)}</p>`);
+    const closeLists = () => {
+      if (inUL) { html.push("</ul>"); inUL = false; }
+      if (inOL) { html.push("</ol>"); inOL = false; }
+    };
+
+    for (const b of bs) {
+      const t = b.type;
+      const o = (b as any)[t];
+      if (!o) continue;
+
+      const openChildren = (kids?: any[]) =>
+        kids && kids.length ? `<div>${renderBlocks(kids)}</div>` : "";
+
+      switch (t) {
+        case "paragraph":
+          closeLists();
+          html.push(`<p>${plain(o.rich_text)}</p>`);
+          break;
+
+        case "heading_1":
+          closeLists();
+          html.push(`<h1>${plain(o.rich_text)}</h1>`);
+          break;
+
+        case "heading_2":
+          closeLists();
+          html.push(`<h2>${plain(o.rich_text)}</h2>`);
+          break;
+
+        case "heading_3":
+          closeLists();
+          html.push(`<h3>${plain(o.rich_text)}</h3>`);
+          break;
+
+        case "bulleted_list_item":
+          if (!inUL) { closeLists(); html.push("<ul>"); inUL = true; }
+          html.push(`<li>${plain(o.rich_text)}${openChildren((b as any)._children)}</li>`);
+          break;
+
+        case "numbered_list_item":
+          if (!inOL) { closeLists(); html.push("<ol>"); inOL = true; }
+          html.push(`<li>${plain(o.rich_text)}${openChildren((b as any)._children)}</li>`);
+          break;
+
+        case "quote":
+          closeLists();
+          html.push(`<blockquote>${plain(o.rich_text)}</blockquote>`);
+          break;
+
+        case "callout": {
+          closeLists();
+          const text = plain(o.rich_text);
+          const icon =
+            o.icon?.emoji ? o.icon.emoji :
+            o.icon?.type === "external" ? "💡" :
+            o.icon?.type === "file" ? "💡" : "";
+          html.push(
+            `<div class="notion-callout"><span class="notion-callout-icon">${icon}</span><div>${text}</div>${openChildren((b as any)._children)}</div>`
+          );
+          break;
+        }
+
+        case "toggle":
+          closeLists();
+          html.push(
+            `<details><summary>${plain(o.rich_text)}</summary>${openChildren((b as any)._children)}</details>`
+          );
+          break;
+
+        case "to_do":
+          closeLists();
+          html.push(
+            `<div class="notion-todo"><input type="checkbox" disabled ${o.checked ? "checked" : ""}/> <span>${plain(
+              o.rich_text
+            )}</span></div>`
+          );
+          break;
+
+        case "code": {
+          closeLists();
+          const lang = o.language || "text";
+          const code = o.rich_text?.map((r: any) => r.plain_text).join("") ?? "";
+          html.push(`<pre><code class="language-${lang}">${code.replace(/</g, "&lt;")}</code></pre>`);
+          break;
+        }
+
+        case "image": {
+          closeLists();
+          const src = o.type === "external" ? o.external?.url : o.file?.url;
+          const cap = plain(o.caption || []);
+          if (src) {
+            html.push(
+              `<figure><img src="${src}" alt="${cap || ""}"/><figcaption>${cap || ""}</figcaption></figure>`
+            );
+          }
+          break;
+        }
+
+        case "divider":
+          closeLists();
+          html.push("<hr/>");
+          break;
+
+        default:
+          // Fallback: render any rich_text as a paragraph
+          if ((o as any)?.rich_text) {
+            closeLists();
+            html.push(`<p>${plain(o.rich_text)}</p>`);
+          }
       }
     }
+    closeLists();
+    return html.join("\n");
   }
-  closeLists();
+
+  const contentHTML = renderBlocks(blocks);
+
+  // Fallback: if page body is empty, try a 'Content' property (rich_text) if you used one
+  let finalHTML = contentHTML && contentHTML.trim().length > 0 ? contentHTML : "";
+  if (!finalHTML) {
+    const props = page.properties || {};
+    const rich = props?.Content?.rich_text || props?.Body?.rich_text || [];
+    const txt = plain(rich);
+    if (txt) finalHTML = `<p>${txt.replace(/\n/g, "<br/>")}</p>`;
+  }
 
   const props = page.properties || {};
   const frontmatter = {
-    title: props?.Title?.title?.[0]?.plain_text ?? "Untitled",
+    title:
+      props?.Title?.title?.[0]?.plain_text ??
+      props?.Name?.title?.[0]?.plain_text ??
+      "Untitled",
     category:
       props?.Category?.select?.name ??
       props?.Category?.rich_text?.[0]?.plain_text ??
@@ -199,6 +271,5 @@ export async function getPostCMS(
     cover: page.cover?.external?.url || page.cover?.file?.url || undefined,
   };
 
-  const html = htmlParts.join("\n");
-  return { frontmatter, html };
+  return { frontmatter, html: finalHTML };
 }
