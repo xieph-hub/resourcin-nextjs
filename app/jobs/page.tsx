@@ -1,47 +1,87 @@
-
+import type { Metadata } from "next";
+import { SITE_URL } from "@/lib/site";
 import Container from "@/components/Container";
+import Link from "next/link";
 
-export default function Page() {
+export const metadata: Metadata = {
+  title: "Jobs — Find Your Next Role",
+  description:
+    "Explore curated job opportunities from leading organizations. Search roles, create a profile, and access expert career advice.",
+  alternates: { canonical: SITE_URL + "/jobs" },
+};
+
+export const dynamic = "force-dynamic"; // we’ll wire this to a data source in the ATS step
+
+export default async function Page() {
+  // Placeholder until ATS module is wired:
+  const jobs: Array<{ title: string; location: string; type: string; slug: string }> = [];
+
   return (
-    <section className="py-12 md:py-20">
-      <Container>
-        <h2 className="text-3xl font-bold">Find Your Next Role</h2>
-        <p className="mt-2 text-slate-600 max-w-3xl">
-          Explore thousands of curated job opportunities from leading organizations. Our intelligent platform connects you with roles
-          that match your skills, aspirations, and values.
-        </p>
-
-        <div className="mt-6 grid md:grid-cols-3 gap-4">
-          <a className="block rounded-2xl border border-slate-200 p-5 hover:shadow-soft transition" href="#jobs-search">
-            <span className="font-medium">Search & Apply for Jobs</span>
-            <p className="text-sm text-slate-600 mt-1">Filter by role, location, and seniority.</p>
-          </a>
-          <a className="block rounded-2xl border border-slate-200 p-5 hover:shadow-soft transition" href="#">
-            <span className="font-medium">Create a Profile and Get Matched</span>
-            <p className="text-sm text-slate-600 mt-1">Let opportunities come to you.</p>
-          </a>
-          <a className="block rounded-2xl border border-slate-200 p-5 hover:shadow-soft transition" href="/insights">
-            <span className="font-medium">Access Expert Career Advice</span>
-            <p className="text-sm text-slate-600 mt-1">Resume tips, interviews, and more.</p>
-          </a>
-        </div>
-
-        <div className="mt-6 flex flex-wrap gap-3">
-          <a href="#jobs-search" className="px-5 py-3 rounded-pill bg-brand-blue text-white shadow-soft">Start Your Search</a>
-          <a href="/contact" className="px-5 py-3 rounded-pill border border-slate-300 hover:border-brand-blue">Join the Talent Network</a>
-        </div>
-
-        <div id="jobs-search" className="mt-10 bg-white border border-slate-200 rounded-2xl p-6">
-          <div className="grid md:grid-cols-3 gap-3">
-            <input className="rounded-xl border border-slate-300 px-4 py-2" placeholder="Job title e.g. Product Manager" />
-            <input className="rounded-xl border border-slate-300 px-4 py-2" placeholder="Location e.g. Lagos / Remote" />
-            <button className="rounded-pill bg-brand-green text-white px-4 py-2">Search</button>
-          </div>
-          <p className="text-xs text-slate-500 mt-3">
-            We are putting finishing touches to our intuitive job board at <code>/api/jobs</code>.
+    <main>
+      <section className="py-14 md:py-20 bg-white">
+        <Container>
+          <h1 className="text-3xl md:text-5xl font-bold">Find Your Next Role</h1>
+          <p className="mt-4 text-slate-600 max-w-3xl">
+            Explore thousands of curated opportunities. Our platform connects you with roles that match your
+            skills, aspirations, and values.
           </p>
-        </div>
-      </Container>
-    </section>
+
+          <div className="mt-6 grid md:grid-cols-3 gap-4">
+            <div className="rounded-xl border p-5">
+              <h3 className="font-medium">Search & Apply for Jobs</h3>
+              <p className="mt-2 text-slate-600 text-sm">Filter by location, department, and job type.</p>
+            </div>
+            <div className="rounded-xl border p-5">
+              <h3 className="font-medium">Create a Profile & Get Matched</h3>
+              <p className="mt-2 text-slate-600 text-sm">Be discoverable when new roles go live.</p>
+            </div>
+            <div className="rounded-xl border p-5">
+              <h3 className="font-medium">Access Expert Career Advice</h3>
+              <p className="mt-2 text-slate-600 text-sm">Interview prep, CV tips, and salary insights.</p>
+            </div>
+          </div>
+
+          {/* Jobs list placeholder */}
+          <div className="mt-10">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold">Open Roles</h2>
+              <div className="text-sm text-slate-500">ATS module coming next</div>
+            </div>
+
+            {jobs.length === 0 ? (
+              <div className="mt-6 rounded-xl border p-6 bg-slate-50 text-slate-600">
+                No roles are listed yet. Check back soon or{" "}
+                <Link href="/contact" className="text-[#172965] font-medium">
+                  join the talent network
+                </Link>
+                .
+              </div>
+            ) : (
+              <ul className="mt-6 space-y-4">
+                {jobs.map((job) => (
+                  <li key={job.slug} className="rounded-xl border p-5 hover:bg-slate-50">
+                    <Link href={`/jobs/${job.slug}`} className="font-medium">
+                      {job.title}
+                    </Link>
+                    <p className="text-sm text-slate-600">
+                      {job.location} • {job.type}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link href="/contact" className="px-5 py-3 rounded-xl bg-[#172965] text-white hover:opacity-90">
+                Start Your Search
+              </Link>
+              <Link href="/insights" className="px-5 py-3 rounded-xl border border-slate-300 hover:bg-slate-50">
+                Read Career Insights
+              </Link>
+            </div>
+          </div>
+        </Container>
+      </section>
+    </main>
   );
 }
