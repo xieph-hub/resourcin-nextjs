@@ -1,7 +1,16 @@
+import type { Metadata } from "next";
 import Container from "@/components/Container";
 import Link from "next/link";
 import Image from "next/image";
 import { getAllPostsCMS } from "@/lib/cms";
+import { SITE_URL } from "@/lib/site";
+
+export const metadata: Metadata = {
+  title: "Insights — HR Strategy, Workforce Trends, Career Growth",
+  description:
+    "Research, thought leadership, and HR trends shaping the future of work. Practical insights for employers and professionals.",
+  alternates: { canonical: SITE_URL + "/insights" },
+};
 
 export const dynamic = "force-dynamic"; // always fetch fresh from Notion
 
@@ -25,7 +34,13 @@ export default async function Page() {
             >
               {p.cover && (
                 <div className="relative w-full h-40 rounded-t-2xl overflow-hidden">
-                  <Image src={p.cover} alt={p.title} fill className="object-cover" />
+                  <Image
+                    src={p.cover}
+                    alt={p.title}
+                    fill
+                    className="object-cover"
+                    unoptimized
+                  />
                 </div>
               )}
               <div className="p-5">
