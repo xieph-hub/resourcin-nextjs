@@ -1,5 +1,3 @@
-
----
 RPO vs In‑House Hiring - When Each Model Wins
 date: 2025-10-20
 category: HR Strategy & Leadership
