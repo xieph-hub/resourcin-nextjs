@@ -3,7 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { getAllPostsCMS } from "@/lib/cms";
 
-export const dynamic = "force-dynamic"; // fetch from Notion at request time
+export const dynamic = "force-dynamic"; // always fetch fresh from Notion
 
 export default async function Page() {
   const posts = await getAllPostsCMS();
@@ -30,7 +30,7 @@ export default async function Page() {
               )}
               <div className="p-5">
                 <p className="text-xs text-slate-500">
-                  {p.category ?? "Insight"}{p.date ? ` • ${new Date(p.date).toLocaleDateString()}` : ""}
+                  {(p.category ?? "Insight") + (p.date ? ` • ${new Date(p.date).toLocaleDateString()}` : "")}
                 </p>
                 <h3 className="font-semibold mt-1">{p.title}</h3>
                 <p className="text-sm text-slate-600 mt-2">{p.excerpt}</p>
