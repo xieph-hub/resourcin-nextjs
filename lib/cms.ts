@@ -80,11 +80,18 @@ export async function getPostCMS(slug: string): Promise<{ frontmatter: any; html
   if (!hasNotion) {
     const file = getFromFiles(slug);
     if (!file) return null;
+
+    // FIX: await marked.parse(...) because it may be async in v12
+    const htmlParsed = await marked.parse(file.content ?? "");
+    const html = typeof htmlParsed === "string" ? htmlParsed : String(htmlParsed);
+
     return {
       frontmatter: file.frontmatter,
-      html: marked.parse(file.content ?? "")
+      html
     };
   }
+  // ...rest of function unchanged
+}
 
   const notion = new Client({ auth: process.env.NOTION_TOKEN! });
   const dbId = process.env.NOTION_DATABASE_ID!;
