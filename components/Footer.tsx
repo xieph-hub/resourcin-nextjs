@@ -5,52 +5,28 @@ export default function Footer() {
   return (
     <footer className="bg-[#172965] text-white">
       <div className="max-w-7xl mx-auto px-4 py-10 grid md:grid-cols-3 gap-8">
-        {/* Brand + tiny social row */}
+        {/* Brand (logo only) */}
         <div>
-          <div className="flex items-center gap-2">
-            <img src="/logo.svg" alt="Resourcin" className="w-8 h-8" />
-            <span className="font-semibold">Resourcin</span>
-          </div>
-          <p className="mt-3 text-sm opacity-90">Connecting Talent with Opportunity, Redefining Workplaces and Careers</p>
+          <a href="/" aria-label="Resourcin — Home" className="inline-flex items-center">
+            <img src="/logo.svg" alt="Resourcin" className="h-12 w-auto md:h-14" />
+          </a>
+          <p className="mt-3 text-sm opacity-90">Boutique HR & recruitment partner.</p>
 
           {/* Tiny social row */}
           <div className="mt-4 flex items-center gap-2">
-            <a
-              href="mailto:hello@resourcin.com"
-              aria-label="Email Resourcin"
-              className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition"
-            >
+            <a href="mailto:hello@resourcin.com" aria-label="Email Resourcin" className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition">
               <Mail className="h-4 w-4 text-white" />
             </a>
-            <a
-              href="tel:+2347045582393"
-              aria-label="Call Resourcin"
-              className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition"
-            >
+            <a href="tel:+2347045582393" aria-label="Call Resourcin" className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition">
               <Phone className="h-4 w-4 text-white" />
             </a>
-            <a
-              href="https://www.linkedin.com/company/resourcin"
-              target="_blank" rel="noopener"
-              aria-label="Resourcin on LinkedIn"
-              className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition"
-            >
+            <a href="https://www.linkedin.com/company/resourcin" target="_blank" rel="noopener" aria-label="Resourcin on LinkedIn" className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition">
               <Linkedin className="h-4 w-4 text-white" />
             </a>
-            <a
-              href="https://x.com/resourcinhq"
-              target="_blank" rel="noopener"
-              aria-label="Resourcin on X"
-              className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition"
-            >
+            <a href="https://x.com/resourcinhq" target="_blank" rel="noopener" aria-label="Resourcin on X" className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition">
               <Twitter className="h-4 w-4 text-white" />
             </a>
-            <a
-              href="https://www.instagram.com/resourcinhq/"
-              target="_blank" rel="noopener"
-              aria-label="Resourcin on Instagram"
-              className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition"
-            >
+            <a href="https://www.instagram.com/resourcinhq/" target="_blank" rel="noopener" aria-label="Resourcin on Instagram" className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition">
               <Instagram className="h-4 w-4 text-white" />
             </a>
           </div>
@@ -84,7 +60,6 @@ export default function Footer() {
       <div className="border-t border-white/15">
         <div className="max-w-7xl mx-auto px-4 py-4 text-xs flex items-center justify-between opacity-90">
           <p>© {year} Resourcin Human Capital Advisors.</p>
-          {/* no "Made with care" text */}
         </div>
       </div>
     </footer>
