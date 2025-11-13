@@ -14,21 +14,20 @@ export default function NavBar() {
 
   return (
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-slate-200">
-      <div className="max-w-7xl mx-auto flex items-center justify-between px-4 py-3 md:py-4">
-        {/* Logo ONLY (bigger) */}
-        <Link href="/" className="flex items-center gap-2" aria-label="Go to homepage">
-          <div className="shrink-0">
-            <Image
-              src="/logo.svg"              // ensure this file exists in /public/logo.svg
-              alt="Resourcin logo"
-              width={56} height={56}       // base size
-              priority
-              className="h-12 w-12 md:h-14 md:w-14"  // scale up on md+
-            />
-          </div>
+      <div className="max-w-7xl mx-auto flex items-center justify-between px-4 py-2 md:py-3">
+        {/* LOGO ONLY — larger */}
+        <Link href="/" className="flex items-center" aria-label="Go to homepage">
+          {/* Remove wrappers that constrain size; drive size from the image */}
+          <Image
+            src="/logo.svg"                 // ensure this exists in /public
+            alt="Resourcin logo"
+            width={84} height={84}          // intrinsic size for better rendering
+            priority
+            className="h-14 w-auto md:h-16 lg:h-20"  // ↑ 56px → 64px → 80px
+          />
         </Link>
 
-        {/* Desktop nav links */}
+        {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-6 text-sm">
           <Link href="/" className="hover:text-brand-blue">Home</Link>
           <Link href="/services" className="hover:text-brand-blue">Services</Link>
