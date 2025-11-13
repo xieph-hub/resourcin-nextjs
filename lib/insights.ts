@@ -46,11 +46,11 @@ export function getAllPosts(): Post[] {
       excerpt,
       date: dateISO,
       category: (data.category as string) ?? undefined,
-      cover: (data.cover as string) ?? undefined,
+      cover: (data.cover as string) ?? undefined
     } as Post;
   });
 
-  // sort newest first; undated posts go last
+  // newest first; undated last
   return posts.sort((a, b) => {
     const aTime = a.date ? Date.parse(a.date) : -Infinity;
     const bTime = b.date ? Date.parse(b.date) : -Infinity;
