@@ -1,86 +1,127 @@
+// app/jobs/page.tsx
+
 import type { Metadata } from "next";
-import { SITE_URL } from "@/lib/site";
-import Container from "@/components/Container";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Jobs — Find Your Next Role",
+  title: "Jobs | Resourcin Human Capital Advisors",
   description:
-    "Explore curated job opportunities from leading organizations. Search roles, create a profile, and access expert career advice.",
-  alternates: { canonical: SITE_URL + "/jobs" },
+    "Explore open roles curated by Resourcin Human Capital Advisors. Find your next opportunity and take the next step in your career.",
 };
 
-export const dynamic = "force-dynamic"; // we’ll wire this to a data source in the ATS step
+type Job = {
+  id: string;
+  title: string;
+  slug: string;
+  location: string;
+  type: string;
+  company: string;
+  department: string;
+  summary: string;
+};
 
-export default async function Page() {
-  // Placeholder until ATS module is wired:
-  const jobs: Array<{ title: string; location: string; type: string; slug: string }> = [];
+const jobs: Job[] = [
+  {
+    id: "1",
+    title: "Senior Product Manager (Fintech)",
+    slug: "senior-product-manager-fintech",
+    location: "Lagos, Nigeria (Hybrid)",
+    type: "Full-time",
+    company: "Resourcin Client – Fintech",
+    department: "Product",
+    summary:
+      "Lead product strategy and execution for a high-growth fintech client, working closely with engineering, design, and commercial teams.",
+  },
+  {
+    id: "2",
+    title: "Business Development Manager",
+    slug: "business-development-manager",
+    location: "Lagos, Nigeria",
+    type: "Full-time",
+    company: "Resourcin Client – B2B Services",
+    department: "Sales & Business Development",
+    summary:
+      "Drive new business acquisition, manage key accounts, and build strategic partnerships to accelerate revenue growth.",
+  },
+  {
+    id: "3",
+    title: "HR Generalist",
+    slug: "hr-generalist",
+    location: "Remote (Nigeria)",
+    type: "Contract",
+    company: "Resourcin Human Capital Advisors",
+    department: "People & HR",
+    summary:
+      "Support recruitment, onboarding, employee relations, and HR operations across multiple client accounts.",
+  },
+];
 
+export default function JobsPage() {
   return (
-    <main>
-      <section className="py-14 md:py-20 bg-white">
-        <Container>
-          <h1 className="text-3xl md:text-5xl font-bold">Find Your Next Role</h1>
-          <p className="mt-4 text-slate-600 max-w-3xl">
-            Explore thousands of curated opportunities. Our platform connects you with roles that match your
-            skills, aspirations, and values.
+    <main className="min-h-screen bg-slate-50">
+      <section className="bg-[#172965] text-white py-16 px-6">
+        <div className="mx-auto max-w-5xl">
+          <p className="text-xs uppercase tracking-[0.2em] text-blue-200/80 mb-2">
+            Jobs
           </p>
+          <h1 className="text-3xl md:text-4xl font-semibold mb-3">
+            Find Your Next Role
+          </h1>
+          <p className="max-w-2xl text-sm md:text-base text-blue-100 leading-relaxed">
+            Explore curated opportunities from Resourcin and our client
+            partners. We focus on roles that align skills, ambition, and
+            culture—so you can do your best work.
+          </p>
+        </div>
+      </section>
 
-          <div className="mt-6 grid md:grid-cols-3 gap-4">
-            <div className="rounded-xl border p-5">
-              <h3 className="font-medium">Search & Apply for Jobs</h3>
-              <p className="mt-2 text-slate-600 text-sm">Filter by location, department, and job type.</p>
+      <section className="px-6 py-10">
+        <div className="mx-auto max-w-5xl">
+          {jobs.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
+              <p className="text-sm text-slate-600">
+                There are no open roles at the moment. Please check back soon or
+                follow us on LinkedIn for updates.
+              </p>
             </div>
-            <div className="rounded-xl border p-5">
-              <h3 className="font-medium">Create a Profile & Get Matched</h3>
-              <p className="mt-2 text-slate-600 text-sm">Be discoverable when new roles go live.</p>
+          ) : (
+            <div className="space-y-4">
+              {jobs.map((job) => (
+                <article
+                  key={job.id}
+                  className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div>
+                      <h2 className="text-lg font-semibold text-slate-900">
+                        {job.title}
+                      </h2>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {job.company} · {job.department}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {job.location} · {job.type}
+                      </p>
+                    </div>
+                    <div className="flex gap-3">
+                      {/* For now, we link to LinkedIn or email.
+                          Later, we will replace this with a full apply flow. */}
+                      <a
+                        href="mailto:hello@resourcin.com?subject=Job%20Application"
+                        className="inline-flex items-center rounded-full bg-[#172965] px-4 py-2 text-xs font-medium text-white hover:bg-[#101c44] transition-colors"
+                      >
+                        Apply via Email
+                      </a>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm text-slate-600 leading-relaxed">
+                    {job.summary}
+                  </p>
+                </article>
+              ))}
             </div>
-            <div className="rounded-xl border p-5">
-              <h3 className="font-medium">Access Expert Career Advice</h3>
-              <p className="mt-2 text-slate-600 text-sm">Interview prep, CV tips, and salary insights.</p>
-            </div>
-          </div>
-
-          {/* Jobs list placeholder */}
-          <div className="mt-10">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Open Roles</h2>
-              <div className="text-sm text-slate-500">ATS module coming next</div>
-            </div>
-
-            {jobs.length === 0 ? (
-              <div className="mt-6 rounded-xl border p-6 bg-slate-50 text-slate-600">
-                No roles are listed yet. Check back soon or{" "}
-                <Link href="/contact" className="text-[#172965] font-medium">
-                  join the talent network
-                </Link>
-                .
-              </div>
-            ) : (
-              <ul className="mt-6 space-y-4">
-                {jobs.map((job) => (
-                  <li key={job.slug} className="rounded-xl border p-5 hover:bg-slate-50">
-                    <Link href={`/jobs/${job.slug}`} className="font-medium">
-                      {job.title}
-                    </Link>
-                    <p className="text-sm text-slate-600">
-                      {job.location} • {job.type}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Link href="/contact" className="px-5 py-3 rounded-xl bg-[#172965] text-white hover:opacity-90">
-                Start Your Search
-              </Link>
-              <Link href="/insights" className="px-5 py-3 rounded-xl border border-slate-300 hover:bg-slate-50">
-                Read Career Insights
-              </Link>
-            </div>
-          </div>
-        </Container>
+          )}
+        </div>
       </section>
     </main>
   );
