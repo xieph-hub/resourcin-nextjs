@@ -88,3 +88,5 @@ export default function JobsPage() {
     </main>
   );
 }
+
+feat: use shared jobs data and add detail links
