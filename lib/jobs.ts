@@ -8,7 +8,8 @@ export type Job = {
   type: string;
   company: string;
   department: string;
-  su
+  summary: string;
+  description: string;
 };
 
 export const jobs: Job[] = [
