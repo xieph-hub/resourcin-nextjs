@@ -1,79 +1,112 @@
 // app/api/apply/route.ts
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { supabaseServer } from "@/lib/storage";
 
-export const runtime = "nodejs"; // ensure Node runtime
-
-// TODO: swap this stub with a real PDF/DOCX parser later
-async function extractText(_buf: Buffer): Promise<string> {
-  return "";
-}
+type ApplyBody = {
+  jobSlug: string;
+  jobTitle: string;
+  name: string;
+  email: string;
+  phone?: string;
+  location?: string;
+  resumeUrl?: string;
+  source?: string;
+};
 
 export async function POST(req: Request) {
   try {
-    const url = new URL(req.url);
-    const jobId = url.searchParams.get("jobId");
-    if (!jobId) {
-      return NextResponse.json({ ok: false, message: "Missing jobId" }, { status: 400 });
+    const body = (await req.json()) as ApplyBody;
+
+    const { jobSlug, jobTitle, name, email, phone, location, resumeUrl, source } = body;
+
+    if (!jobSlug || !jobTitle || !name || !email) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "Missing required fields (jobSlug, jobTitle, name, email).",
+        },
+        { status: 400 }
+      );
     }
 
-    // Ensure job exists & is published
-    const job = await prisma.job.findUnique({ where: { id: jobId } });
-    if (!job || !job.isPublished) {
-      return NextResponse.json({ ok: false, message: "Job not found or unpublished" }, { status: 404 });
-    }
+    const normalizedEmail = email.trim().toLowerCase();
 
-    const form = await req.formData();
-    const name = String(form.get("name") || "");
-    const email = String(form.get("email") || "");
-    const phone = String(form.get("phone") || "");
-    const file = form.get("resume") as File | null;
+    // 1) Ensure Job exists (create a placeholder if needed)
+    let job = await prisma.job.findUnique({
+      where: { slug: jobSlug },
+    });
 
-    if (!name || !email || !file) {
-      return NextResponse.json({ ok: false, message: "Missing required fields" }, { status: 400 });
-    }
-
-    const bytes = Buffer.from(await file.arrayBuffer());
-    const safeName = file.name.replace(/[^\w.\-]+/g, "_");
-    const objectPath = `${jobId}/${Date.now()}-${safeName}`;
-
-    // Upload to **private** bucket (resumes)
-    const { error: upErr } = await supabaseServer.storage
-      .from("resumes")
-      .upload(objectPath, bytes, {
-        contentType: file.type || "application/octet-stream",
-        upsert: false,
+    if (!job) {
+      job = await prisma.job.create({
+        data: {
+          slug: jobSlug,
+          title: jobTitle,
+          description:
+            "This job posting was created automatically when a candidate applied. Please update the full description from the admin panel.",
+          excerpt: null,
+          department: null,
+          location: location || null,
+          type: null,
+          isPublished: false,
+        },
       });
-    if (upErr) throw upErr;
+    }
 
-    // Parse text (placeholder)
-    const rawText = await extractText(bytes);
-
-    // Create candidate + application
-    const candidate = await prisma.candidate.create({
-      data: {
-        name,
-        email,
-        phone,
-        // store the PRIVATE path only (no public URL)
-        resumeUrl: objectPath,
-        rawText,
-      },
+    // 2) Find or create Candidate
+    let candidate = await prisma.candidate.findFirst({
+      where: { email: normalizedEmail },
     });
 
-    await prisma.application.create({
+    if (!candidate) {
+      candidate = await prisma.candidate.create({
+        data: {
+          name,
+          email: normalizedEmail,
+          phone: phone || null,
+          location: location || null,
+          resumeUrl: resumeUrl || null,
+        },
+      });
+    } else {
+      // Light-touch update with latest info (optional)
+      candidate = await prisma.candidate.update({
+        where: { id: candidate.id },
+        data: {
+          name: candidate.name ?? name,
+          phone: phone || candidate.phone,
+          location: location || candidate.location,
+          resumeUrl: resumeUrl || candidate.resumeUrl,
+        },
+      });
+    }
+
+    // 3) Create Application
+    const application = await prisma.application.create({
       data: {
-        jobId,
+        jobId: job.id,
         candidateId: candidate.id,
-        source: "inbound",
+        stage: "APPLIED",
+        source: source || "inbound",
       },
     });
 
-    // Redirect to a clean success page
-    const success = new URL(`/apply/success?title=${encodeURIComponent(job.title)}`, url.origin);
-    return NextResponse.redirect(success, 302);
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, message: e?.message ?? "Error" }, { status: 500 });
+    return NextResponse.json(
+      {
+        ok: true,
+        message: "Application submitted successfully.",
+        applicationId: application.id,
+      },
+      { status: 201 }
+    );
+  } catch (err) {
+    console.error("Apply API error:", err);
+    return NextResponse.json(
+      {
+        ok: false,
+        message: "Something went wrong while submitting your application.",
+      },
+      { status: 500 }
+    );
   }
 }
