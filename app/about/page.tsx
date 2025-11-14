@@ -3,7 +3,7 @@ import { SITE_URL } from "@/lib/site";
 import Container from "@/components/Container";
 
 export const metadata: Metadata = {
-  title: "About — Empowering Businesses. Elevating Careers.",
+  title: "About — Connecting Talent with Opportunity, Redefining Workplaces and Careers.",
   description:
     "Resourcin Human Capital Advisors connects talent with opportunity through customized recruitment, job placement, and HR advisory—powered by technology and deep industry insight.",
   alternates: { canonical: SITE_URL + "/about" },
@@ -14,7 +14,7 @@ export default function Page() {
     <main>
       <section className="py-14 md:py-20 bg-white">
         <Container>
-          <h1 className="text-3xl md:text-5xl font-bold">Empowering Businesses. Elevating Careers.</h1>
+          <h1 className="text-3xl md:text-5xl font-bold">Connecting Talent with Opportunity, Redefining Workplaces and Careers.</h1>
           <p className="mt-4 text-slate-600 max-w-3xl">
             We are a dynamic human capital solutions provider committed to connecting talent with opportunity.
             Our holistic approach streamlines hiring for organizations and equips individuals with the tools to
