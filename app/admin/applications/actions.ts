@@ -1,22 +1,22 @@
+// app/admin/applications/actions.ts
 "use server";
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
 export async function updateApplicationStage(formData: FormData) {
-  const id = formData.get("id") as string;
-  const stage = formData.get("stage") as string;
+  const id = String(formData.get("id") || "").trim();
+  const stage = String(formData.get("stage") || "").trim();
 
-  if (!id || !stage) return;
+  if (!id || !stage) {
+    throw new Error("Missing fields for updating application stage");
+  }
 
   await prisma.application.update({
     where: { id },
-    data: {
-      stage: stage as any, // enum value on Application
-    },
+    data: { stage },
   });
 
-  // Refresh the detail page and the list page
-  revalidatePath(`/admin/applications/${id}`);
-  revalidatePath(`/admin/applications`);
+  // Refresh the applications view
+  revalidatePath("/admin/applications");
 }
