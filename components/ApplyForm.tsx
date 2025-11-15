@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 
 type ApplyFormProps = {
   jobTitle: string;
-  jobSlug?: string; // optional, we can fall back to URL
+  jobSlug?: string;
 };
 
 export default function ApplyForm({ jobTitle, jobSlug }: ApplyFormProps) {
@@ -14,14 +14,12 @@ export default function ApplyForm({ jobTitle, jobSlug }: ApplyFormProps) {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [location, setLocation] = useState("");
-  const [resumeUrl, setResumeUrl] = useState("");
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setIsError] = useState(false);
 
   const pathname = usePathname();
-
-  // Try to derive slug from URL: e.g. /jobs/<slug>
   const slugFromPath =
     pathname
       ?.split("?")[0]
@@ -37,17 +35,46 @@ export default function ApplyForm({ jobTitle, jobSlug }: ApplyFormProps) {
     setMessage(null);
     setIsError(false);
 
-    // Safety check – we need some job identifier
-    if (!effectiveJobSlug && !jobTitle) {
-      setIsError(true);
-      setMessage(
-        "We couldn’t identify the job you’re applying for. Please refresh the page and try again."
-      );
-      setIsSubmitting(false);
-      return;
-    }
-
     try {
+      if (!effectiveJobSlug && !jobTitle) {
+        setIsError(true);
+        setMessage(
+          "We couldn’t identify the job you’re applying for. Please refresh the page and try again."
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
+      let resumeUrl: string | null = null;
+
+      // 1) Upload CV file if present
+      if (resumeFile) {
+        const uploadForm = new FormData();
+        uploadForm.append("file", resumeFile);
+        uploadForm.append("jobSlug", effectiveJobSlug || "general");
+
+        const uploadRes = await fetch("/api/upload-resume", {
+          method: "POST",
+          body: uploadForm,
+        });
+
+        const uploadData = await uploadRes.json().catch(() => null);
+
+        if (!uploadRes.ok || !uploadData?.ok) {
+          console.error("Resume upload failed", uploadData);
+          setIsError(true);
+          setMessage(
+            uploadData?.message ||
+              "We couldn’t upload your CV. Please try again or email us directly."
+          );
+          setIsSubmitting(false);
+          return;
+        }
+
+        resumeUrl = uploadData.url as string;
+      }
+
+      // 2) Call existing /api/apply with the resumeUrl (old behaviour preserved)
       const res = await fetch("/api/apply", {
         method: "POST",
         headers: {
@@ -76,12 +103,11 @@ export default function ApplyForm({ jobTitle, jobSlug }: ApplyFormProps) {
       } else {
         setIsError(false);
         setMessage("Thank you — your application has been received.");
-        // Reset form
         setName("");
         setEmail("");
         setPhone("");
         setLocation("");
-        setResumeUrl("");
+        setResumeFile(null);
       }
     } catch (error) {
       console.error(error);
@@ -171,20 +197,24 @@ export default function ApplyForm({ jobTitle, jobSlug }: ApplyFormProps) {
           </div>
         </div>
 
-        {/* Resume URL */}
+        {/* Resume file upload */}
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">
-            CV / Resume URL
+            CV / Resume file
           </label>
           <input
-            value={resumeUrl}
-            onChange={(e) => setResumeUrl(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#172965] focus:border-[#172965]"
-            placeholder="Link to your CV (Google Drive, Dropbox, etc.)"
+            type="file"
+            accept=".pdf,.doc,.docx,.rtf,.txt,.odt"
+            onChange={(e) => setResumeFile(e.target.files?.[0] ?? null)}
+            className="block w-full text-xs text-slate-600
+                       file:mr-3 file:rounded-full file:border-0
+                       file:bg-[#172965] file:px-4 file:py-2
+                       file:text-xs file:font-medium file:text-white
+                       hover:file:bg-[#101c44]"
           />
           <p className="mt-1 text-[11px] text-slate-500">
-            Please make sure the link is accessible (public or &quot;anyone with
-            the link&quot; can view).
+            Upload your CV in PDF or Word format. Max size ~5–10MB is
+            recommended.
           </p>
         </div>
 
