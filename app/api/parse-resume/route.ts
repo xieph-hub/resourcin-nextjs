@@ -21,7 +21,8 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           ok: false,
-          message: "Please paste the full CV or profile text (at least a few lines).",
+          message:
+            "Please paste the full CV or profile text (at least a few lines).",
         },
         { status: 400 }
       );
@@ -64,7 +65,7 @@ If something is unknown, use an empty string for that field.
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4.1-mini", // you can change to another model if you want
+        model: "gpt-4.1-mini", // if model issues appear, try "gpt-4o-mini" instead
         messages: [
           { role: "system", content: prompt },
           { role: "user", content: `CV OR PROFILE TEXT:\n\n${text}` },
@@ -74,12 +75,48 @@ If something is unknown, use an empty string for that field.
     });
 
     if (!response.ok) {
-      const errText = await response.text().catch(() => "");
-      console.error("OpenAI error:", response.status, errText);
+      // Try to pull a useful error message from OpenAI
+      let details = "";
+      try {
+        const errJson = await response.json();
+        details = errJson?.error?.message || JSON.stringify(errJson);
+      } catch {
+        try {
+          details = await response.text();
+        } catch {
+          details = "";
+        }
+      }
+
+      console.error(
+        "OpenAI API error:",
+        response.status,
+        response.statusText,
+        details
+      );
+
+      let userMessage = "AI service returned an error while parsing the profile.";
+
+      if (response.status === 401) {
+        userMessage =
+          "AI key is invalid or not authorized. Check your OPENAI_API_KEY.";
+      } else if (response.status === 404) {
+        userMessage =
+          'AI model not found for this key. Try changing the model name (e.g. to "gpt-4o-mini").';
+      } else if (response.status === 429) {
+        userMessage =
+          "AI rate limit or quota exceeded on your OpenAI account.";
+      } else if (response.status === 400) {
+        userMessage =
+          "AI request was rejected (bad request). Check model and parameters.";
+      }
+
       return NextResponse.json(
         {
           ok: false,
-          message: "AI service returned an error while parsing the profile.",
+          message: `${userMessage} (status ${response.status}${
+            details ? `: ${details}` : ""
+          })`,
         },
         { status: 500 }
       );
@@ -102,14 +139,20 @@ If something is unknown, use an empty string for that field.
     let parsed: ParsedCandidate;
 
     try {
-      // Ideally the model returns pure JSON
       parsed = JSON.parse(content);
     } catch {
-      // Fallback: try to extract JSON substring between first { and last }
       const start = content.indexOf("{");
       const end = content.lastIndexOf("}");
       if (start === -1 || end === -1 || end <= start) {
-        throw new Error("Could not find JSON object in AI response.");
+        console.error("Could not find JSON in AI response:", content);
+        return NextResponse.json(
+          {
+            ok: false,
+            message:
+              "AI returned an unexpected format. Please try again or fill fields manually.",
+          },
+          { status: 500 }
+        );
       }
       const jsonSubstring = content.slice(start, end + 1);
       parsed = JSON.parse(jsonSubstring);
@@ -121,7 +164,7 @@ If something is unknown, use an empty string for that field.
     return NextResponse.json(
       {
         ok: false,
-        message: "Failed to parse the resume/profile text.",
+          message: "Failed to parse the resume/profile text.",
       },
       { status: 500 }
     );
