@@ -2,33 +2,60 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import ApplicationStageSelect from "@/components/ApplicationStageSelect";
+import AdminApplicationsFilterBar from "@/components/AdminApplicationsFilterBar";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export default async function ApplicationsPage() {
-  const applications = await prisma.application.findMany({
-    orderBy: { createdAt: "desc" },
-    include: {
-      job: {
-        select: {
-          id: true,
-          title: true,
-          slug: true,
+type PageProps = {
+  searchParams?: {
+    [key: string]: string | string[] | undefined;
+  };
+};
+
+export default async function ApplicationsPage({ searchParams }: PageProps) {
+  const stageParam = (searchParams?.stage as string | undefined) || undefined;
+  const jobIdParam = (searchParams?.jobId as string | undefined) || undefined;
+
+  const where: any = {};
+
+  if (stageParam && stageParam !== "ALL") {
+    where.stage = stageParam;
+  }
+
+  if (jobIdParam && jobIdParam !== "ALL") {
+    where.jobId = jobIdParam;
+  }
+
+  const [jobs, applications] = await Promise.all([
+    prisma.job.findMany({
+      orderBy: { title: "asc" },
+      select: { id: true, title: true },
+    }),
+    prisma.application.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      include: {
+        job: {
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+          },
+        },
+        candidate: {
+          select: {
+            id: true,
+            fullname: true,
+            email: true,
+            phone: true,
+            location: true,
+            resumeUrl: true,
+          },
         },
       },
-      candidate: {
-        select: {
-          id: true,
-          fullname: true,
-          email: true,
-          phone: true,
-          location: true,
-          resumeUrl: true,
-        },
-      },
-    },
-  });
+    }),
+  ]);
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-10">
@@ -41,14 +68,20 @@ export default async function ApplicationsPage() {
         </p>
       </header>
 
+      <AdminApplicationsFilterBar
+        jobs={jobs}
+        currentStage={stageParam}
+        currentJobId={jobIdParam}
+      />
+
       <div className="mb-4 text-xs text-slate-500">
         {applications.length} application
-        {applications.length === 1 ? "" : "s"}
+        {applications.length === 1 ? "" : "s"} matching filters
       </div>
 
       {applications.length === 0 ? (
         <p className="text-sm text-slate-500">
-          No applications yet. Share a job link and ask someone to apply.
+          No applications found for the selected filters.
         </p>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white/80 shadow-sm">
