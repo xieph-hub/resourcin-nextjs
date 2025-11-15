@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 export const dynamic = "force-dynamic";
 
 // Server action: create / update candidate + (optionally) attach to a job
-export async function createSourcedCandidate(formData: FormData) {
+async function createSourcedCandidate(formData: FormData) {
   "use server";
 
   const nameRaw = (formData.get("name") as string | null) ?? "";
@@ -59,7 +59,7 @@ export async function createSourcedCandidate(formData: FormData) {
         location: location || null,
         source,
         rawText: rawProfile || null,
-        // resumeUrl stays null here; if you ever add later you can update
+        // resumeUrl stays null here; can be added later via upload
       },
     });
   }
@@ -68,14 +68,14 @@ export async function createSourcedCandidate(formData: FormData) {
   if (jobId) {
     await prisma.application.create({
       data: {
-        stage: "APPLIED", // keep using your existing stage enum
+        stage: "APPLIED",
         candidate: { connect: { id: candidate.id } },
         job: { connect: { id: jobId } },
       },
     });
   }
 
-  // 4) Drop you straight into their profile
+  // 4) Go straight to the candidate profile
   redirect(`/admin/candidates/${candidate.id}`);
 }
 
