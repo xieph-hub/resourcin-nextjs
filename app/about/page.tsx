@@ -66,7 +66,7 @@ export default function Page() {
             <div className="rounded-2xl border p-6">
               <h3 className="font-medium">Partnership</h3>
               <p className="mt-2 text-slate-600 text-sm">
-                Success is collaborative—we work hand-in-hand to achieve shared goals.
+                Success is collaborative, we work hand-in-hand to achieve shared goals.
               </p>
             </div>
           </div>
