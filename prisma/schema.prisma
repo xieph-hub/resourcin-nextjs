@@ -33,6 +33,7 @@ model Job {
   isPublished Boolean    @default(false)
 
   applications Application[]
+  candidates  Candidate[]   //
 
   @@index([isPublished, postedAt])
 }
