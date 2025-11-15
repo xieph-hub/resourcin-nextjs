@@ -189,3 +189,12 @@ export default function ApplyForm({ jobTitle, jobSlug }: ApplyFormProps) {
               className={`text-xs ${
                 isError ? "text-red-600" : "text-emerald-600"
               }`}
+            >
+              {message}
+            </p>
+          )}
+        </div>
+      </form>
+    </section>
+  );
+}
