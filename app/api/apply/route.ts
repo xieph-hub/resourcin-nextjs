@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     let source: string | undefined;
     let cvFile: File | null = null;
 
-    // 1️⃣ Parse body – multipart (with file) OR JSON
+    // 1️⃣ Parse body – multipart (file upload) OR JSON
     if (contentType.includes("multipart/form-data")) {
       const formData = await req.formData();
 
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3️⃣ Find job strictly by ID
+    // 3️⃣ Find job by ID only
     const job = await prisma.job.findUnique({
       where: { id: jobId },
     });
@@ -81,7 +81,7 @@ export async function POST(req: Request) {
         },
       });
     } else {
-      // light update with freshest details
+      // Light update with latest info
       candidate = await prisma.candidate.update({
         where: { id: candidate.id },
         data: {
@@ -93,7 +93,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // 5️⃣ Try upload CV to Supabase (non-blocking)
+    // 5️⃣ Try Supabase CV upload (non-blocking)
     let resumeUrl: string | null = null;
     let cvWarning: string | null = null;
 
@@ -112,7 +112,7 @@ export async function POST(req: Request) {
         const objectPath = `cv/${candidate.id}-${Date.now()}.${ext}`;
 
         const { data: uploadData, error: uploadError } = await supabase.storage
-          .from("resourcin-uploads") // 🔒 make sure this matches your bucket name
+          .from("resourcin-uploads") // 🔒 bucket name – make sure it matches Supabase
           .upload(objectPath, cvFile, {
             cacheControl: "3600",
             upsert: false,
@@ -128,7 +128,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // If we got a URL, store it on Candidate
     if (resumeUrl) {
       await prisma.candidate.update({
         where: { id: candidate.id },
@@ -136,7 +135,7 @@ export async function POST(req: Request) {
       });
     }
 
-    // 6️⃣ Create Application – keep it lean to match your schema
+    // 6️⃣ Create Application (lean, schema-safe)
     const application = await prisma.application.create({
       data: {
         job: { connect: { id: job.id } },
@@ -154,6 +153,86 @@ export async function POST(req: Request) {
         `Please email your CV to hello@resourcin.com with the role title in the subject.`;
     }
 
+    // 7️⃣ Resend email notifications (non-blocking)
+    const resendApiKey = process.env.RESEND_API_KEY;
+    const fromEmail =
+      process.env.RESEND_FROM_EMAIL || "Resourcin <hello@resourcin.com>";
+    const adminEmail =
+      process.env.RESOURCIN_ADMIN_EMAIL || "hello@resourcin.com";
+
+    if (resendApiKey) {
+      const jobTitle = job.title;
+      const candidateName = candidate.fullname || name || "";
+
+      // 7a. Candidate confirmation email
+      try {
+        await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${resendApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from: fromEmail,
+            to: [normalizedEmail],
+            subject: `We’ve received your application – ${jobTitle}`,
+            html: `
+              <p>Hi ${candidateName},</p>
+              <p>Thank you for applying for the <strong>${jobTitle}</strong> role via Resourcin.</p>
+              <p>We’ll review your profile and get in touch if there’s a strong match.</p>
+              ${
+                cvWarning && !resumeUrl
+                  ? `<p><strong>Note:</strong> We could not automatically save your CV. Please reply to this email with your CV attached.</p>`
+                  : ""
+              }
+              <p>Best,<br/>Resourcin Team</p>
+            `,
+          }),
+        });
+      } catch (emailErr) {
+        console.error("Resend candidate email error:", emailErr);
+      }
+
+      // 7b. Admin notification email
+      try {
+        await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${resendApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from: fromEmail,
+            to: [adminEmail],
+            subject: `New application – ${jobTitle}`,
+            html: `
+              <p>A new application has been received for <strong>${jobTitle}</strong>.</p>
+              <ul>
+                <li><strong>Name:</strong> ${candidateName}</li>
+                <li><strong>Email:</strong> ${normalizedEmail}</li>
+                ${
+                  phone
+                    ? `<li><strong>Phone:</strong> ${phone}</li>`
+                    : ""
+                }
+                ${
+                  location
+                    ? `<li><strong>Location:</strong> ${location}</li>`
+                    : ""
+                }
+              </ul>
+              <p>Log into the Resourcin admin dashboard to review this candidate.</p>
+            `,
+          }),
+        });
+      } catch (emailErr) {
+        console.error("Resend admin email error:", emailErr);
+      }
+    } else {
+      console.warn("RESEND_API_KEY is not set – skipping email notifications.");
+    }
+
+    // 8️⃣ Final response to the frontend
     return NextResponse.json(
       {
         ok: true,
@@ -162,7 +241,7 @@ export async function POST(req: Request) {
       },
       { status: 200 }
     );
-  } catch (err: any) {
+  } catch (err) {
     console.error("Apply API error:", err);
     return NextResponse.json(
       {
