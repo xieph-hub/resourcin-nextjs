@@ -7,15 +7,31 @@ type JobPageProps = {
 };
 
 export default async function JobPage({ params }: JobPageProps) {
-  const { slug } = params;
+  const rawSlug = params.slug;
+  const slug = decodeURIComponent(rawSlug);
 
-  // 🔹 Look up the job strictly by slug
-  const job = await prisma.job.findUnique({
-    where: { slug },
-  });
+  let job = null;
 
-  // 🔹 If no job or explicitly unpublished, show a friendly message
-  if (!job || job.isPublished === false) {
+  try {
+    // 1️⃣ Try find by slug
+    job = await prisma.job.findFirst({
+      where: { slug },
+    });
+
+    // 2️⃣ Fallback: if no job by slug, try treating it as ID
+    if (!job) {
+      job = await prisma.job
+        .findUnique({
+          where: { id: slug },
+        })
+        .catch(() => null);
+    }
+  } catch (err) {
+    console.error("Error loading job", err);
+  }
+
+  // ❌ Still nothing – show friendly not-found page
+  if (!job) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16">
         <h1 className="text-2xl font-semibold text-slate-900">
