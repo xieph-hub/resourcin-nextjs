@@ -1,6 +1,7 @@
 // app/admin/applications/page.tsx
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import ApplicationStageSelect from "@/components/ApplicationStageSelect";
 
 export const runtime = "nodejs";
 
@@ -77,9 +78,10 @@ export default async function ApplicationsPage() {
                     {app.job?.title || "—"}
                   </td>
                   <td className="px-4 py-3 text-xs">
-                    <span className="inline-flex rounded-full bg-[#172965]/8 px-2.5 py-1 text-[11px] font-medium text-[#172965]">
-                      {app.stage}
-                    </span>
+                    <ApplicationStageSelect
+                      applicationId={app.id}
+                      initialStage={(app.stage as any) || "APPLIED"}
+                    />
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-500">
                     {app.createdAt
