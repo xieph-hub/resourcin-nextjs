@@ -3,33 +3,23 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl || !supabaseServiceKey) {
-  console.warn(
-    "SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing on the server."
-  );
+function getSupabase() {
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error(
+      "SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing on the server."
+    );
+  }
+  return createClient(supabaseUrl, supabaseServiceKey);
 }
-
-const supabaseAdmin =
-  supabaseUrl && supabaseServiceKey
-    ? createClient(supabaseUrl, supabaseServiceKey)
-    : null;
 
 export async function POST(req: Request) {
   try {
-    if (!supabaseAdmin) {
-      return NextResponse.json(
-        {
-          ok: false,
-          message:
-            "Supabase storage is not configured correctly on the server (missing env vars).",
-        },
-        { status: 500 }
-      );
-    }
+    const supabase = getSupabase();
 
     const formData = await req.formData();
     const file = formData.get("file");
@@ -37,7 +27,7 @@ export async function POST(req: Request) {
 
     if (!(file instanceof File)) {
       return NextResponse.json(
-        { ok: false, message: "No file uploaded." },
+        { ok: false, message: "No file was received by the server." },
         { status: 400 }
       );
     }
@@ -47,13 +37,14 @@ export async function POST(req: Request) {
         ? jobSlugRaw
         : "general";
 
-    const safeSlug = jobSlug.replace(/[^a-zA-Z0-9-_]/g, "-");
-    const ext = file.name.includes(".") ? file.name.split(".").pop() : "dat";
-    const timestamp = Date.now();
-    const safeName = file.name.replace(/[^\w.-]/g, "_");
-    const path = `${safeSlug}/${timestamp}-${safeName || `cv.${ext}`}`;
+    const safeSlug = jobSlug.replace(/[^a-zA-Z0-9-_]/g, "-") || "general";
 
-    const { data, error } = await supabaseAdmin.storage
+    const originalName = file.name || "cv";
+    const safeName = originalName.replace(/[^\w.-]/g, "_");
+    const timestamp = Date.now();
+    const path = `${safeSlug}/${timestamp}-${safeName}`;
+
+    const { data, error } = await supabase.storage
       .from("resumes")
       .upload(path, file, {
         cacheControl: "3600",
@@ -66,7 +57,9 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           ok: false,
-          message: error?.message || "Supabase upload failed.",
+          message:
+            error?.message ||
+            "Supabase returned an unknown error during upload.",
         },
         { status: 500 }
       );
@@ -74,25 +67,18 @@ export async function POST(req: Request) {
 
     const {
       data: { publicUrl },
-    } = supabaseAdmin.storage.from("resumes").getPublicUrl(data.path);
+    } = supabase.storage.from("resumes").getPublicUrl(data.path);
 
     return NextResponse.json(
-      {
-        ok: true,
-        url: publicUrl,
-      },
+      { ok: true, url: publicUrl ?? null },
       { status: 200 }
     );
   } catch (err: any) {
-    console.error("Unexpected upload error:", err);
-    return NextResponse.json(
-      {
-        ok: false,
-        message:
-          err?.message ||
-          "Unexpected error while uploading your CV. Please email it instead.",
-      },
-      { status: 500 }
-    );
+    console.error("Upload handler error:", err);
+    const msg =
+      typeof err?.message === "string"
+        ? err.message
+        : "Unexpected error in upload handler.";
+    return NextResponse.json({ ok: false, message: msg }, { status: 500 });
   }
 }
