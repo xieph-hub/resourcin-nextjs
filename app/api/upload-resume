@@ -18,7 +18,7 @@ export async function POST(req: Request) {
         {
           ok: false,
           message:
-            "File upload is not configured yet. Please try again later or email us your CV directly.",
+            "File upload is not configured yet on our side. Please submit your application and email your CV to hello@resourcin.com.",
         },
         { status: 500 }
       );
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     const contentType = req.headers.get("content-type") || "";
     if (!contentType.includes("multipart/form-data")) {
       return NextResponse.json(
-        { ok: false, message: "Invalid content type" },
+        { ok: false, message: "Invalid content type for file upload." },
         { status: 400 }
       );
     }
@@ -38,7 +38,19 @@ export async function POST(req: Request) {
 
     if (!file || file.size === 0) {
       return NextResponse.json(
-        { ok: false, message: "No file uploaded" },
+        { ok: false, message: "No file uploaded." },
+        { status: 400 }
+      );
+    }
+
+    // Optional: very basic size guard (e.g. 10MB)
+    const MAX_SIZE = 10 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "File too large. Please upload a CV under 10MB.",
+        },
         { status: 400 }
       );
     }
@@ -62,26 +74,45 @@ export async function POST(req: Request) {
     if (error) {
       console.error("Supabase upload error:", error);
       return NextResponse.json(
-        { ok: false, message: "Could not upload CV. Please try again." },
+        {
+          ok: false,
+          message:
+            error.message ||
+            "Could not upload CV due to a storage error. Please email your CV instead.",
+        },
         { status: 500 }
       );
     }
 
-    const { data: publicData } = client.storage
+    const { data: publicData, error: urlError } = client.storage
       .from("resumes")
       .getPublicUrl(data.path);
+
+    if (urlError) {
+      console.error("Supabase getPublicUrl error:", urlError);
+      return NextResponse.json(
+        {
+          ok: false,
+          message:
+            urlError.message ||
+            "We stored your CV but could not generate a public link. Please email it to us as backup.",
+        },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       ok: true,
       url: publicData.publicUrl,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Upload-resume API error:", error);
     return NextResponse.json(
       {
         ok: false,
         message:
-          "Something went wrong while uploading your CV. Please try again.",
+          error?.message ||
+          "Something went wrong while uploading your CV. Please try again or email it directly.",
       },
       { status: 500 }
     );
