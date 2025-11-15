@@ -74,8 +74,8 @@ export async function POST(req: Request) {
     if (contentType.includes("multipart/form-data")) {
       formData = await req.formData();
     } else {
-      // Fallback: JSON clients
-      const body = await req.json();
+      // Fallback for JSON callers (legacy behaviour)
+      const body = await req.json().catch(() => ({}));
       formData = new FormData();
       Object.entries(body || {}).forEach(
         ([key, value]) => {
@@ -106,12 +106,17 @@ export async function POST(req: Request) {
     const source =
       (
         (formData.get("source") as string) ||
-        "resourcin-site"
-      ).trim() || "resourcin-site";
+        "website"
+      ).trim() || "website";
 
     if (!emailRaw) {
       return NextResponse.json(
-        { success: false, error: "Email is required" },
+        {
+          success: false,
+          ok: false,
+          error: "Email is required",
+          message: "Email is required",
+        },
         { status: 400 }
       );
     }
@@ -135,7 +140,12 @@ export async function POST(req: Request) {
 
     if (!job) {
       return NextResponse.json(
-        { success: false, error: "Job not found" },
+        {
+          success: false,
+          ok: false,
+          error: "Job not found",
+          message: "Job not found",
+        },
         { status: 404 }
       );
     }
@@ -213,8 +223,7 @@ export async function POST(req: Request) {
       await prisma.application.create({
         data: {
           job: { connect: { id: job.id } },
-          // If your Application model has a candidate relation, you can enable this:
-          // candidate: { connect: { id: candidate.id } },
+          // Adjust this if your Application model uses a different field name:
           fullName:
             name ||
             candidate.fullname ||
@@ -232,16 +241,25 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         success: true,
+        ok: true,
         applicationId: application.id,
+        message: "Application received",
       },
       { status: 200 }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("Apply API error:", error);
+
+    const errMessage =
+      error?.message ||
+      "Something went wrong while processing your application.";
+
     return NextResponse.json(
       {
         success: false,
-        error: "Something went wrong",
+        ok: false,
+        error: errMessage,
+        message: errMessage,
       },
       { status: 500 }
     );
