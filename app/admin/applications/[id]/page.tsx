@@ -2,6 +2,7 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import ApplicationStageSelect from "@/components/ApplicationStageSelect";
 
 export const runtime = "nodejs";
 
@@ -67,9 +68,10 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
 
         <div className="text-right text-xs">
           <p className="mb-1 text-slate-500">Stage</p>
-          <span className="inline-flex rounded-full bg-[#172965]/8 px-3 py-1 text-[11px] font-medium text-[#172965]">
-            {application.stage}
-          </span>
+          <ApplicationStageSelect
+            applicationId={application.id}
+            initialStage={(application.stage as any) || "APPLIED"}
+          />
         </div>
       </div>
 
@@ -138,7 +140,7 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
       </section>
 
       {/* Meta */}
-      <section className="rounded-2xl border border-slate-200 bg-white/80 p-4 text-xs text-slate-500 shadow-sm">
+      <section className="rounded-2xl border border-slate-200 bg:white/80 p-4 text-xs text-slate-500 shadow-sm">
         <p>
           Application ID:{" "}
           <span className="font-mono text-slate-700">{application.id}</span>
