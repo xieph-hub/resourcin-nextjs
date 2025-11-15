@@ -41,7 +41,7 @@ model Job {
 model Candidate {
   id         String    @id @default(cuid())
   jobId      String
-  job        Job               @relation(fields: [jobId], references: [id])
+  job        Job?      @relation(fields: [jobId], references: [id])
   fullname   String?
   email      String?
   phone      String?
