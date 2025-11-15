@@ -154,7 +154,7 @@ export async function POST(req: Request) {
     if (!candidate) {
       candidate = await prisma.candidate.create({
         data: {
-          fullname: name || null, // your Candidate has fullname
+          fullname: name || null, // Candidate has `fullname`
           email: normalizedEmail,
           phone: phone || null,
           location: location || null,
@@ -176,12 +176,12 @@ export async function POST(req: Request) {
     }
 
     // 4️⃣ Create application record – link BOTH job and candidate
-    //    Use "name" here because your Application model does not have "fullName".
+    //    🔴 IMPORTANT: your Application model does NOT have `name` or `fullName`,
+    //    so we do NOT send those here anymore.
     const application = await prisma.application.create({
       data: {
         job: { connect: { id: job.id } },
         candidate: { connect: { id: candidate.id } },
-        name: name || candidate.fullname || "Candidate", // ⬅️ changed from fullName → name
         email: normalizedEmail,
         phone: phone || candidate.phone,
         location: location || candidate.location,
