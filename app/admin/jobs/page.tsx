@@ -5,12 +5,28 @@ import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminJobsPage() {
+type AdminJobsPageProps = {
+  searchParams?: {
+    created?: string;
+    status?: string;
+  };
+};
+
+export default async function AdminJobsPage({ searchParams }: AdminJobsPageProps) {
   const jobs = await prisma.job.findMany({
     orderBy: {
       postedAt: "desc",
     },
   });
+
+  const created = !!searchParams?.created;
+  const statusUpdated = !!searchParams?.status;
+
+  const bannerMessage = created
+    ? "Job created and published."
+    : statusUpdated
+    ? "Job status updated."
+    : null;
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-50">
@@ -32,6 +48,13 @@ export default async function AdminJobsPage() {
             . Each role gets its own detail page and apply flow.
           </p>
         </header>
+
+        {/* Banner feedback */}
+        {bannerMessage && (
+          <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-[11px] text-emerald-200">
+            {bannerMessage}
+          </div>
+        )}
 
         {/* Create job form */}
         <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
@@ -134,8 +157,7 @@ export default async function AdminJobsPage() {
                 placeholder="Paste the full JD here. You can use basic HTML or just plain text."
               />
               <p className="mt-1 text-[10px] text-slate-500">
-                Rich formatting: you can paste HTML from your editor, or just
-                keep it as raw paragraphs and bullet points.
+                You can paste rich JDs from your docs, or keep it simple text.
               </p>
             </div>
 
