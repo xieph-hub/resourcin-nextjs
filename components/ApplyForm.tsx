@@ -1,7 +1,7 @@
 // components/ApplyForm.tsx
 "use client";
 
-import { FormEvent, useState } from "react";
+import { useState } from "react";
 
 type ApplyFormProps = {
   jobTitle: string;
@@ -13,27 +13,33 @@ export default function ApplyForm({ jobTitle, jobId }: ApplyFormProps) {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [location, setLocation] = useState("");
-  const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [cvFile, setCvFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [isError, setIsError] = useState(false);
 
-  async function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setIsSubmitting(true);
     setMessage(null);
     setIsError(false);
 
     try {
+      if (!jobId) {
+        throw new Error("Missing job ID.");
+      }
+
       const formData = new FormData();
       formData.append("jobId", jobId);
+      formData.append("jobTitle", jobTitle);
       formData.append("name", name);
       formData.append("email", email);
-      if (phone) formData.append("phone", phone);
-      if (location) formData.append("location", location);
+      formData.append("phone", phone);
+      formData.append("location", location);
       formData.append("source", "website");
-      if (resumeFile) {
-        formData.append("resume", resumeFile);
+
+      if (cvFile) {
+        formData.append("cv", cvFile);
       }
 
       const res = await fetch("/api/apply", {
@@ -41,33 +47,41 @@ export default function ApplyForm({ jobTitle, jobId }: ApplyFormProps) {
         body: formData,
       });
 
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok || !data?.ok) {
-        setIsError(true);
-        setMessage(
-          data?.message ||
-            "We couldn’t submit your application. Please try again or email us directly."
-        );
-      } else {
-        setIsError(false);
-        setMessage(
-          data.message ||
-            "Thank you — your application has been received."
-        );
-
-        // Reset form
-        setName("");
-        setEmail("");
-        setPhone("");
-        setLocation("");
-        setResumeFile(null);
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        // ignore JSON parse error, we'll fallback to generic message
       }
-    } catch (error) {
-      console.error(error);
+
+      if (!res.ok || data?.ok === false) {
+        setIsError(true);
+        const apiMessage =
+          data?.message ||
+          "We couldn’t submit your application. Please try again or email us directly.";
+        setMessage(apiMessage);
+        return;
+      }
+
+      setIsError(false);
+      setMessage(
+        data?.message ||
+          "Thank you — your application has been received. We’ll be in touch if there’s a fit."
+      );
+
+      // reset fields
+      setName("");
+      setEmail("");
+      setPhone("");
+      setLocation("");
+      setCvFile(null);
+      (e.target as HTMLFormElement).reset();
+    } catch (err: any) {
+      console.error(err);
       setIsError(true);
       setMessage(
-        "Something went wrong while submitting your application. Please try again."
+        err?.message ||
+          "Something went wrong while submitting your application. Please try again."
       );
     } finally {
       setIsSubmitting(false);
@@ -95,7 +109,7 @@ export default function ApplyForm({ jobTitle, jobId }: ApplyFormProps) {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {/* Name */}
+          {/* Full name */}
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">
               Full name *
@@ -151,27 +165,28 @@ export default function ApplyForm({ jobTitle, jobId }: ApplyFormProps) {
           </div>
         </div>
 
-        {/* CV Upload */}
+        {/* CV / Resume file */}
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-600">
-            Upload CV / Resume
+            CV / Resume file
           </label>
           <input
+            name="cv"
             type="file"
-            accept=".pdf,.doc,.docx,.rtf,.txt"
+            accept=".pdf,.doc,.docx"
             onChange={(e) => {
               const file = e.target.files?.[0] || null;
-              setResumeFile(file);
+              setCvFile(file);
             }}
-            className="block w-full text-xs text-slate-600 file:mr-3 file:rounded-full file:border-0 file:bg-[#172965] file:px-4 file:py-2 file:text-xs file:font-medium file:text-white hover:file:bg-[#101c44]"
+            className="block w-full cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 file:mr-3 file:cursor-pointer file:rounded-full file:border-0 file:bg-[#172965] file:px-4 file:py-1.5 file:text-xs file:font-medium file:text-white hover:file:bg-[#101c44]"
           />
           <p className="mt-1 text-[11px] text-slate-500">
-            If the upload fails, you&apos;ll still be able to submit and email
-            your CV separately.
+            Upload a PDF or Word document. If the upload fails, you&apos;ll
+            still be able to email your CV to us.
           </p>
         </div>
 
-        {/* Button + message */}
+        {/* Submit + status */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <button
             type="submit"
