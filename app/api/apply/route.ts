@@ -1,6 +1,6 @@
 // app/api/apply/route.ts
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { prisma } from "@/lib/prisma"; // ⬅️ named import (important!)
 import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     let source = "website";
     let cvFile: File | null = null;
 
-    // We support both multipart/form-data (form with file) and JSON (no file)
+    // Support both multipart/form-data (form with file) and JSON (no file)
     if (contentType.includes("multipart/form-data")) {
       const formData = await req.formData();
 
