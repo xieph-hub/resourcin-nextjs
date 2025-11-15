@@ -5,21 +5,26 @@ import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-async function getApplications() {
-  const applications = await prisma.application.findMany({
-    orderBy: { createdAt: "desc" },
-    include: {
-      job: true,
-      candidate: true,
-    },
-    take: 200, // safety cap so we don't load thousands at once
-  });
+async function getApplicationsSafe() {
+  try {
+    const applications = await prisma.application.findMany({
+      orderBy: { createdAt: "desc" },
+      include: {
+        job: true,
+        candidate: true,
+      },
+      take: 200,
+    });
 
-  return applications;
+    return { applications, error: null as string | null };
+  } catch (err) {
+    console.error("Admin applications error:", err);
+    return { applications: [], error: "Could not load applications from the database." };
+  }
 }
 
 export default async function AdminApplicationsPage() {
-  const applications = await getApplications();
+  const { applications, error } = await getApplicationsSafe();
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-50">
@@ -43,8 +48,18 @@ export default async function AdminApplicationsPage() {
           </Link>
         </header>
 
+        {/* Error state */}
+        {error && (
+          <div className="mb-6 rounded-2xl border border-red-500/40 bg-red-950/20 px-4 py-3 text-sm text-red-200">
+            <div className="font-medium mb-1">We couldn&apos;t load applications.</div>
+            <div className="text-xs text-red-200/80">
+              {error} If you just changed database settings, give it a moment and refresh.
+            </div>
+          </div>
+        )}
+
         {/* Empty state */}
-        {applications.length === 0 && (
+        {!error && applications.length === 0 && (
           <div className="border border-dashed border-slate-700 rounded-2xl px-6 py-10 text-center">
             <p className="text-sm text-slate-300 font-medium mb-1">
               No applications yet.
@@ -57,7 +72,7 @@ export default async function AdminApplicationsPage() {
         )}
 
         {/* Table */}
-        {applications.length > 0 && (
+        {!error && applications.length > 0 && (
           <div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden shadow-lg shadow-black/30">
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
@@ -126,7 +141,9 @@ export default async function AdminApplicationsPage() {
                       {/* Applied date */}
                       <td className="px-4 py-3 align-top text-xs text-slate-400">
                         {app.createdAt
-                          ? new Date(app.createdAt).toISOString().slice(0, 10)
+                          ? new Date(app.createdAt as unknown as string)
+                              .toISOString()
+                              .slice(0, 10)
                           : "—"}
                       </td>
                     </tr>
