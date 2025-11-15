@@ -3,20 +3,31 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function CandidatesPage() {
-  // Cast to any to keep TypeScript from being too strict here
-  const candidates = (await prisma.candidate.findMany({
-    include: {
-      job: {
-        select: {
-          title: true,
+  let candidates: any[] = [];
+  let dbError: string | null = null;
+
+  try {
+    candidates = (await prisma.candidate.findMany({
+      include: {
+        job: {
+          select: {
+            title: true,
+          },
         },
       },
-    },
-    orderBy: {
-      id: "desc",
-    } as any,
-  })) as any[];
+      orderBy: {
+        id: "desc",
+      } as any,
+    })) as any[];
+  } catch (error: any) {
+    console.error("Error loading candidates:", error);
+    dbError =
+      "We couldn’t load candidates from the database right now. Please try again later.";
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50 p-6">
@@ -37,98 +48,106 @@ export default async function CandidatesPage() {
           </div>
         </header>
 
+        {dbError && (
+          <div className="rounded-xl border border-red-500/40 bg-red-950/40 p-4 text-xs text-red-200">
+            {dbError}
+          </div>
+        )}
+
         {/* Table */}
-        <section className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/60">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-900/80 border-b border-slate-800">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium text-slate-400">
-                  Candidate
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-slate-400">
-                  Job
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-slate-400">
-                  Source
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-slate-400">
-                  Resume
-                </th>
-                <th className="px-4 py-3 text-right font-medium text-slate-400">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {candidates.length === 0 ? (
+        {!dbError && (
+          <section className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/60">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-900/80 border-b border-slate-800">
                 <tr>
-                  <td
-                    colSpan={5}
-                    className="px-4 py-10 text-center text-slate-500"
-                  >
-                    No candidates yet. Submit an application from the site to
-                    see it appear here.
-                  </td>
+                  <th className="px-4 py-3 text-left font-medium text-slate-400">
+                    Candidate
+                  </th>
+                  <th className="px-4 py-3 text-left font-medium text-slate-400">
+                    Job
+                  </th>
+                  <th className="px-4 py-3 text-left font-medium text-slate-400">
+                    Source
+                  </th>
+                  <th className="px-4 py-3 text-left font-medium text-slate-400">
+                    Resume
+                  </th>
+                  <th className="px-4 py-3 text-right font-medium text-slate-400">
+                    Actions
+                  </th>
                 </tr>
-              ) : (
-                candidates.map((candidate) => {
-                  const name =
-                    candidate.fullname ??
-                    candidate.name ??
-                    "Unnamed candidate";
-
-                  return (
-                    <tr
-                      key={candidate.id}
-                      className="border-b border-slate-800/70 hover:bg-slate-800/40"
+              </thead>
+              <tbody>
+                {candidates.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="px-4 py-10 text-center text-slate-500"
                     >
-                      <td className="px-4 py-3">
-                        <div className="flex flex-col">
-                          <span className="font-medium">{name}</span>
-                          <span className="text-xs text-slate-400">
-                            {candidate.email}
-                          </span>
-                        </div>
-                      </td>
+                      No candidates yet. Submit an application from the site to
+                      see it appear here.
+                    </td>
+                  </tr>
+                ) : (
+                  candidates.map((candidate) => {
+                    const name =
+                      candidate.fullname ??
+                      candidate.name ??
+                      "Unnamed candidate";
 
-                      <td className="px-4 py-3 text-slate-200">
-                        {candidate.job?.title ?? "—"}
-                      </td>
+                    return (
+                      <tr
+                        key={candidate.id}
+                        className="border-b border-slate-800/70 hover:bg-slate-800/40"
+                      >
+                        <td className="px-4 py-3">
+                          <div className="flex flex-col">
+                            <span className="font-medium">{name}</span>
+                            <span className="text-xs text-slate-400">
+                              {candidate.email}
+                            </span>
+                          </div>
+                        </td>
 
-                      <td className="px-4 py-3 text-slate-300">
-                        {candidate.source ?? "—"}
-                      </td>
+                        <td className="px-4 py-3 text-slate-200">
+                          {candidate.job?.title ?? "—"}
+                        </td>
 
-                      <td className="px-4 py-3 text-slate-300">
-                        {candidate.resumeUrl ? (
-                          <a
-                            href={candidate.resumeUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-xs text-emerald-400 hover:text-emerald-300"
+                        <td className="px-4 py-3 text-slate-300">
+                          {candidate.source ?? "—"}
+                        </td>
+
+                        <td className="px-4 py-3 text-slate-300">
+                          {candidate.resumeUrl ? (
+                            <a
+                              href={candidate.resumeUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs text-emerald-400 hover:text-emerald-300"
+                            >
+                              View resume
+                            </a>
+                          ) : (
+                            <span className="text-xs text-slate-500">—</span>
+                          )}
+                        </td>
+
+                        <td className="px-4 py-3 text-right">
+                          <Link
+                            href={`/admin/applications?stage=&jobId=`}
+                            className="text-xs font-medium text-emerald-400 hover:text-emerald-300"
                           >
-                            View resume
-                          </a>
-                        ) : (
-                          <span className="text-xs text-slate-500">—</span>
-                        )}
-                      </td>
-
-                      <td className="px-4 py-3 text-right">
-                        <Link
-                          href={`/admin/applications?stage=&jobId=`}
-                          className="text-xs font-medium text-emerald-400 hover:text-emerald-300"
-                        >
-                          View applications
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </section>
+                            View applications
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </section>
+        )}
       </div>
     </div>
   );
