@@ -28,7 +28,7 @@ export async function POST(req: Request) {
       noticePeriod,
       cvUrl,
       source,
-      location, // in case old clients send a single location string
+      location, // fallback if a single location string is sent
     } = body as {
       fullName?: string;
       email?: string;
@@ -64,7 +64,6 @@ export async function POST(req: Request) {
 
     const normalizedEmail = email.trim().toLowerCase();
 
-    // Create a new sourced candidate (no upsert here, this is for sourcing pipeline)
     const candidate = await prisma.candidate.create({
       data: {
         fullName,
@@ -106,5 +105,10 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("Error in /api/sourcing/create", error);
     return NextResponse.json(
-      { error: "Something went wrong creating sourced candidate" },
-      { status: 500
+      {
+        error: "Something went wrong creating sourced candidate",
+      },
+      { status: 500 }
+    );
+  }
+}
