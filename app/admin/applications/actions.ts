@@ -12,27 +12,11 @@ export async function updateApplicationStage(formData: FormData) {
   await prisma.application.update({
     where: { id },
     data: {
-      stage: stage as any, // ApplicationStage
+      stage: stage as any, // enum value on Application
     },
   });
 
+  // Refresh the detail page and the list page
   revalidatePath(`/admin/applications/${id}`);
-}
-
-export async function addApplicationNote(formData: FormData) {
-  const applicationId = formData.get("applicationId") as string;
-  const body = formData.get("body") as string;
-  const author = formData.get("author") as string | null;
-
-  if (!applicationId || !body) return;
-
-  await prisma.applicationNote.create({
-    data: {
-      applicationId,
-      body,
-      author: author || null,
-    },
-  });
-
-  revalidatePath(`/admin/applications/${applicationId}`);
+  revalidatePath(`/admin/applications`);
 }
