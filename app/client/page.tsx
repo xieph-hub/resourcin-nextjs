@@ -1,31 +1,18 @@
-// app/client/page.tsx
-
-export default function ClientIndexPage() {
+export default function ClientDashboardPage() {
   return (
-    <main className="min-h-screen bg-slate-50">
-      <div className="max-w-2xl mx-auto px-4 py-16">
-        <p className="text-xs uppercase tracking-wide text-slate-400">
-          Client portal
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-neutral-800 bg-neutral-950/70 p-6">
+        <h2 className="text-xl font-semibold mb-2">Dashboard</h2>
+        <p className="text-sm text-neutral-400 mb-4">
+          This dashboard will summarise your open roles, candidates in process
+          and active EOR employees.
         </p>
-        <h1 className="mt-2 text-2xl font-semibold text-slate-900">
-          Client link incomplete
-        </h1>
-        <p className="mt-3 text-sm text-slate-500">
-          This page is part of the Resourcin client portal.
-          <br />
-          To view your live roles and candidate pipeline, please use the full
-          link shared with you (for example:
-          <span className="font-mono text-[11px] text-slate-700">
-            {" "}
-            /client/resourcin
-          </span>
-          ).
-        </p>
-        <p className="mt-4 text-xs text-slate-400">
-          If you believe you&apos;ve reached this page in error, please contact
-          your Resourcin account manager.
-        </p>
-      </div>
-    </main>
+        <ul className="list-disc pl-5 text-xs text-neutral-400 space-y-1">
+          <li>Open roles and their status</li>
+          <li>Pipeline health (candidates per stage)</li>
+          <li>Overview of EOR headcount by country</li>
+        </ul>
+      </section>
+    </div>
   );
 }
