@@ -1,30 +1,30 @@
 // app/jobs/[slug]/page.tsx
-import { notFound } from "next/navigation";
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { notFound } from "next/navigation";
 import ApplyForm from "@/components/ApplyForm";
+import Link from "next/link";
 
-type PageProps = {
-  params: { slug: string };
-};
-
-// Force this page to be rendered on each request (no static generation issues)
 export const dynamic = "force-dynamic";
 
-export default async function JobPage({ params }: PageProps) {
+type JobPageProps = {
+  params: {
+    slug: string;
+  };
+};
+
+export default async function JobPage({ params }: JobPageProps) {
   const { slug } = params;
 
-  // 1) Load job by slug (no isPublished filter here to avoid accidental 404s)
   const job = await prisma.job.findUnique({
     where: { slug },
   });
 
-  // If there is truly no job in the DB with this slug, show 404
-  if (!job) {
+  if (!job || !job.isPublished) {
+    // Hide unpublished / missing roles from public
     notFound();
   }
 
-  const postedDate =
+  const posted =
     job.postedAt instanceof Date
       ? job.postedAt.toLocaleDateString("en-NG", {
           year: "numeric",
@@ -33,70 +33,97 @@ export default async function JobPage({ params }: PageProps) {
         })
       : "";
 
+  const jobUrl = `https://www.resourcin.com/jobs/${job.slug}`;
+  const encodedUrl = encodeURIComponent(jobUrl);
+  const encodedTitle = encodeURIComponent(job.title);
+
+  const twitterUrl = `https://twitter.com/intent/tweet?text=${encodedTitle}&url=${encodedUrl}`;
+  const linkedinUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`;
+
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-50">
-      <div className="max-w-4xl mx-auto px-4 py-16">
-        {/* Back link */}
-        <Link
-          href="/jobs"
-          className="inline-flex items-center text-xs text-slate-400 hover:text-white mb-6"
-        >
-          <span className="mr-1">←</span> Back to all roles
-        </Link>
+    <main className="min-h-screen bg-slate-50 text-slate-900">
+      <div className="max-w-4xl mx-auto px-4 py-10 space-y-10">
+        {/* Breadcrumb */}
+        <nav className="text-[11px] text-slate-500 flex items-center gap-2">
+          <Link href="/jobs" className="hover:text-[#172965]">
+            Jobs
+          </Link>
+          <span>/</span>
+          <span className="text-slate-700">{job.title}</span>
+        </nav>
 
-        {/* Job header */}
-        <header className="space-y-3 mb-8">
-          <p className="text-[11px] uppercase tracking-[0.15em] text-[#FFB703] font-semibold">
-            Open role
+        {/* Header + meta */}
+        <header className="space-y-3">
+          <p className="text-[11px] uppercase tracking-[0.15em] text-[#172965] font-semibold">
+            Role
           </p>
-
-          <h1 className="text-2xl md:text-3xl font-semibold text-white">
+          <h1 className="text-2xl font-semibold text-slate-900">
             {job.title}
           </h1>
 
-          {job.excerpt && (
-            <p className="text-sm text-slate-300 max-w-2xl">{job.excerpt}</p>
-          )}
-
-          <div className="mt-4 flex flex-wrap gap-3 text-[11px] text-slate-300">
-            {job.department && (
-              <span className="inline-flex items-center rounded-full border border-slate-700 px-3 py-1">
-                {job.department}
-              </span>
-            )}
+          <div className="flex flex-wrap gap-2 text-[11px] text-slate-600">
             {job.location && (
-              <span className="inline-flex items-center rounded-full border border-slate-700 px-3 py-1">
+              <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1">
                 {job.location}
               </span>
             )}
             {job.type && (
-              <span className="inline-flex items-center rounded-full border border-slate-700 px-3 py-1">
+              <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1">
                 {job.type}
               </span>
             )}
-            {postedDate && (
-              <span className="inline-flex items-center rounded-full border border-slate-800 px-3 py-1 text-slate-400">
-                Posted {postedDate}
+            {job.department && (
+              <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1">
+                {job.department}
+              </span>
+            )}
+            {posted && (
+              <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1">
+                Posted {posted}
               </span>
             )}
           </div>
+
+          {/* Share */}
+          <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500">
+            <span>Share this role:</span>
+            <div className="flex gap-2">
+              <a
+                href={twitterUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center rounded-full border border-slate-300 px-2.5 py-1 hover:border-[#172965] hover:text-[#172965] transition"
+              >
+                Twitter / X
+              </a>
+              <a
+                href={linkedinUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center rounded-full border border-slate-300 px-2.5 py-1 hover:border-[#172965] hover:text-[#172965] transition"
+              >
+                LinkedIn
+              </a>
+            </div>
+          </div>
         </header>
 
-        {/* Layout: description + apply form */}
-        <div className="grid gap-10 md:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)] items-start">
-          {/* Job description */}
-          <article className="prose prose-invert prose-sm max-w-none">
-            <div
-              className="prose prose-invert prose-sm max-w-none"
-              // If description is plain text, it will still render; if it's HTML, it will be formatted.
-              dangerouslySetInnerHTML={{ __html: job.description || "" }}
-            />
-          </article>
+        <div className="grid gap-10 md:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)]">
+          {/* JD */}
+          <section className="rounded-xl border border-slate-200 bg-white p-6">
+            {job.excerpt && (
+              <p className="mb-4 text-sm font-medium text-slate-800">
+                {job.excerpt}
+              </p>
+            )}
 
-          {/* Apply sidebar */}
-          <aside>
-            <ApplyForm jobId={job.id} jobTitle={job.title} />
-          </aside>
+            <div className="mt-4 text-sm text-slate-700 whitespace-pre-line leading-relaxed">
+              {job.description || "No description provided yet."}
+            </div>
+          </section>
+
+          {/* Apply card */}
+          <ApplyForm jobTitle={job.title} jobId={job.id} />
         </div>
       </div>
     </main>
