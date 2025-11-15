@@ -7,23 +7,19 @@ export const runtime = "nodejs";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const RESUME_BUCKET =
-  process.env.SUPABASE_RESUME_BUCKET || "resumes";
+const RESUME_BUCKET = process.env.SUPABASE_RESUME_BUCKET || "resumes";
 
 // Helper: upload resume file to Supabase Storage via REST API
 async function uploadResumeToSupabase(file: File, email: string | null) {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    console.warn(
-      "Supabase env vars not set, skipping resume upload"
-    );
+    console.warn("Supabase env vars not set, skipping resume upload");
     return null;
   }
 
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
-  const ext =
-    (file.name.split(".").pop() || "bin").toLowerCase();
+  const ext = (file.name.split(".").pop() || "bin").toLowerCase();
   const safeEmail = (email || "candidate")
     .toLowerCase()
     .replace(/[^a-z0-9_-]/gi, "_");
@@ -39,8 +35,7 @@ async function uploadResumeToSupabase(file: File, email: string | null) {
   const res = await fetch(uploadUrl, {
     method: "POST",
     headers: {
-      "Content-Type":
-        file.type || "application/octet-stream",
+      "Content-Type": file.type || "application/octet-stream",
       Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
     },
     body: buffer,
@@ -48,11 +43,7 @@ async function uploadResumeToSupabase(file: File, email: string | null) {
 
   if (!res.ok) {
     const text = await res.text();
-    console.error(
-      "Supabase resume upload failed:",
-      res.status,
-      text
-    );
+    console.error("Supabase resume upload failed:", res.status, text);
     return null;
   }
 
@@ -65,8 +56,7 @@ async function uploadResumeToSupabase(file: File, email: string | null) {
 
 export async function POST(req: Request) {
   try {
-    const contentType =
-      req.headers.get("content-type") || "";
+    const contentType = req.headers.get("content-type") || "";
 
     let formData: FormData;
 
@@ -77,37 +67,22 @@ export async function POST(req: Request) {
       // Fallback for JSON callers (legacy behaviour)
       const body = await req.json().catch(() => ({}));
       formData = new FormData();
-      Object.entries(body || {}).forEach(
-        ([key, value]) => {
-          if (typeof value === "string") {
-            formData.append(key, value);
-          }
+      Object.entries(body || {}).forEach(([key, value]) => {
+        if (typeof value === "string") {
+          formData.append(key, value);
         }
-      );
+      });
     }
 
-    const jobIdFromForm =
-      (formData.get("jobId") as string) || null;
-    const jobSlug =
-      (formData.get("jobSlug") as string) || null;
+    const jobIdFromForm = (formData.get("jobId") as string) || null;
+    const jobSlug = (formData.get("jobSlug") as string) || null;
 
-    const name = (
-      (formData.get("name") as string) || ""
-    ).trim();
-    const emailRaw = (
-      (formData.get("email") as string) || ""
-    ).trim();
-    const phone = (
-      (formData.get("phone") as string) || ""
-    ).trim();
-    const location = (
-      (formData.get("location") as string) || ""
-    ).trim();
+    const name = ((formData.get("name") as string) || "").trim();
+    const emailRaw = ((formData.get("email") as string) || "").trim();
+    const phone = ((formData.get("phone") as string) || "").trim();
+    const location = ((formData.get("location") as string) || "").trim();
     const source =
-      (
-        (formData.get("source") as string) ||
-        "website"
-      ).trim() || "website";
+      ((formData.get("source") as string) || "website").trim() || "website";
 
     if (!emailRaw) {
       return NextResponse.json(
@@ -123,7 +98,7 @@ export async function POST(req: Request) {
 
     const normalizedEmail = emailRaw.toLowerCase();
 
-    // Find the job either by id or slug
+    // 1️⃣ Find the job either by id or slug
     let job = null;
 
     if (jobIdFromForm) {
@@ -150,33 +125,28 @@ export async function POST(req: Request) {
       );
     }
 
-    // Handle resume: file + optional legacy resumeUrl field
+    // 2️⃣ Handle resume: file + optional resumeUrl field
     let resumeUrl: string | null = null;
 
     const resumeFile = formData.get("resume");
-    if (
-      resumeFile instanceof File &&
-      resumeFile.size > 0
-    ) {
-      const uploadedUrl =
-        await uploadResumeToSupabase(
-          resumeFile,
-          normalizedEmail
-        );
+    if (resumeFile instanceof File && resumeFile.size > 0) {
+      const uploadedUrl = await uploadResumeToSupabase(
+        resumeFile,
+        normalizedEmail
+      );
       if (uploadedUrl) {
         resumeUrl = uploadedUrl;
       }
     }
 
     if (!resumeUrl) {
-      const resumeUrlField =
-        (formData.get("resumeUrl") as string) || "";
+      const resumeUrlField = (formData.get("resumeUrl") as string) || "";
       if (resumeUrlField) {
         resumeUrl = resumeUrlField;
       }
     }
 
-    // Find or create candidate by email
+    // 3️⃣ Find or create candidate by email (NO job connect here)
     let candidate = await prisma.candidate.findFirst({
       where: { email: normalizedEmail },
     });
@@ -184,9 +154,6 @@ export async function POST(req: Request) {
     if (!candidate) {
       candidate = await prisma.candidate.create({
         data: {
-          job: {
-            connect: { id: job.id },
-          },
           fullname: name || null,
           email: normalizedEmail,
           phone: phone || null,
@@ -199,44 +166,29 @@ export async function POST(req: Request) {
       candidate = await prisma.candidate.update({
         where: { id: candidate.id },
         data: {
-          fullname:
-            candidate.fullname || name || null,
+          fullname: candidate.fullname || name || null,
           phone: phone || candidate.phone,
-          location:
-            location || candidate.location,
-          resumeUrl:
-            resumeUrl || candidate.resumeUrl,
+          location: location || candidate.location,
+          resumeUrl: resumeUrl || candidate.resumeUrl,
           source: candidate.source || source,
-          ...(candidate.jobId
-            ? {}
-            : {
-                job: {
-                  connect: { id: job.id },
-                },
-              }),
         },
       });
     }
 
-    // Create application record – now also connecting required candidate relation
-    const application =
-      await prisma.application.create({
-        data: {
-          job: { connect: { id: job.id } },
-          candidate: { connect: { id: candidate.id } },
-          fullName:
-            name ||
-            candidate.fullname ||
-            "Candidate",
-          email: normalizedEmail,
-          phone: phone || candidate.phone,
-          location:
-            location || candidate.location,
-          source,
-          resumeUrl,
-          stage: "APPLIED",
-        } as any,
-      });
+    // 4️⃣ Create application record – link BOTH job and candidate
+    const application = await prisma.application.create({
+      data: {
+        job: { connect: { id: job.id } },
+        candidate: { connect: { id: candidate.id } },
+        fullName: name || candidate.fullname || "Candidate",
+        email: normalizedEmail,
+        phone: phone || candidate.phone,
+        location: location || candidate.location,
+        source,
+        resumeUrl,
+        stage: "APPLIED",
+      } as any,
+    });
 
     return NextResponse.json(
       {
@@ -258,8 +210,8 @@ export async function POST(req: Request) {
       {
         success: false,
         ok: false,
-        error: errMessage,
-        message: errMessage,
+      error: errMessage,
+      message: errMessage,
       },
       { status: 500 }
     );
