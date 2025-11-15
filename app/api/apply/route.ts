@@ -1,59 +1,172 @@
 // app/api/apply/route.ts
 
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
+import { prisma } from "@/lib/prisma";
 
-type ApplyBody = {
-  jobSlug: string;
-  jobTitle: string;
-  name: string;
-  email: string;
-  phone?: string;
-  location?: string;
-  resumeUrl?: string;
-  source?: string;
-};
+export const runtime = "nodejs";
+
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const RESUME_BUCKET =
+  process.env.SUPABASE_RESUME_BUCKET || "resumes";
+
+// Helper: upload resume file to Supabase Storage via REST API
+async function uploadResumeToSupabase(file: File, email: string | null) {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    console.warn(
+      "Supabase env vars not set, skipping resume upload"
+    );
+    return null;
+  }
+
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+
+  const ext =
+    (file.name.split(".").pop() || "bin").toLowerCase();
+  const safeEmail = (email || "candidate")
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/gi, "_");
+
+  const path = `${safeEmail}/${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2)}.${ext}`;
+
+  const uploadUrl = `${SUPABASE_URL}/storage/v1/object/${encodeURIComponent(
+    RESUME_BUCKET
+  )}/${path}`;
+
+  const res = await fetch(uploadUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type":
+        file.type || "application/octet-stream",
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+    },
+    body: buffer,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    console.error(
+      "Supabase resume upload failed:",
+      res.status,
+      text
+    );
+    return null;
+  }
+
+  const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${encodeURIComponent(
+    RESUME_BUCKET
+  )}/${path}`;
+
+  return publicUrl;
+}
 
 export async function POST(req: Request) {
   try {
-    const body = (await req.json()) as ApplyBody;
+    const contentType =
+      req.headers.get("content-type") || "";
 
-    const { jobSlug, jobTitle, name, email, phone, location, resumeUrl, source } = body;
+    let formData: FormData;
 
-    if (!jobSlug || !jobTitle || !name || !email) {
+    // Prefer multipart/form-data for file upload
+    if (contentType.includes("multipart/form-data")) {
+      formData = await req.formData();
+    } else {
+      // Fallback: JSON clients
+      const body = await req.json();
+      formData = new FormData();
+      Object.entries(body || {}).forEach(
+        ([key, value]) => {
+          if (typeof value === "string") {
+            formData.append(key, value);
+          }
+        }
+      );
+    }
+
+    const jobIdFromForm =
+      (formData.get("jobId") as string) || null;
+    const jobSlug =
+      (formData.get("jobSlug") as string) || null;
+
+    const name = (
+      (formData.get("name") as string) || ""
+    ).trim();
+    const emailRaw = (
+      (formData.get("email") as string) || ""
+    ).trim();
+    const phone = (
+      (formData.get("phone") as string) || ""
+    ).trim();
+    const location = (
+      (formData.get("location") as string) || ""
+    ).trim();
+    const source =
+      (
+        (formData.get("source") as string) ||
+        "resourcin-site"
+      ).trim() || "resourcin-site";
+
+    if (!emailRaw) {
       return NextResponse.json(
-        {
-          ok: false,
-          message: "Missing required fields (jobSlug, jobTitle, name, email).",
-        },
+        { success: false, error: "Email is required" },
         { status: 400 }
       );
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail = emailRaw.toLowerCase();
 
-    // 1) Ensure Job exists (create a placeholder if needed)
-    let job = await prisma.job.findUnique({
-      where: { slug: jobSlug },
-    });
+    // Find the job either by id or slug
+    let job = null;
 
-    if (!job) {
-      job = await prisma.job.create({
-        data: {
-          slug: jobSlug,
-          title: jobTitle,
-          description:
-            "This job posting was created automatically when a candidate applied. Please update the full description from the admin panel.",
-          excerpt: null,
-          department: null,
-          location: location || null,
-          type: null,
-          isPublished: false,
-        },
+    if (jobIdFromForm) {
+      job = await prisma.job.findUnique({
+        where: { id: jobIdFromForm },
       });
     }
 
-    // 2) Find or create Candidate
+    if (!job && jobSlug) {
+      job = await prisma.job.findUnique({
+        where: { slug: jobSlug },
+      });
+    }
+
+    if (!job) {
+      return NextResponse.json(
+        { success: false, error: "Job not found" },
+        { status: 404 }
+      );
+    }
+
+    // Handle resume: file + optional legacy resumeUrl field
+    let resumeUrl: string | null = null;
+
+    const resumeFile = formData.get("resume");
+    if (
+      resumeFile instanceof File &&
+      resumeFile.size > 0
+    ) {
+      const uploadedUrl =
+        await uploadResumeToSupabase(
+          resumeFile,
+          normalizedEmail
+        );
+      if (uploadedUrl) {
+        resumeUrl = uploadedUrl;
+      }
+    }
+
+    if (!resumeUrl) {
+      const resumeUrlField =
+        (formData.get("resumeUrl") as string) || "";
+      if (resumeUrlField) {
+        resumeUrl = resumeUrlField;
+      }
+    }
+
+    // Find or create candidate by email
     let candidate = await prisma.candidate.findFirst({
       where: { email: normalizedEmail },
     });
@@ -61,56 +174,74 @@ export async function POST(req: Request) {
     if (!candidate) {
       candidate = await prisma.candidate.create({
         data: {
-          // 👇 connect this candidate to the job they applied for
           job: {
-            connect: {
-              id: job.id, // assumes you already fetched `job` earlier in this file
-            },
+            connect: { id: job.id },
           },
-          fullname: name,
+          fullname: name || null,
           email: normalizedEmail,
           phone: phone || null,
           location: location || null,
           resumeUrl: resumeUrl || null,
+          source,
         },
       });
-          } else {
-      // Update existing candidate with any new info from this application
+    } else {
       candidate = await prisma.candidate.update({
         where: { id: candidate.id },
         data: {
-          fullname: candidate.fullname ?? name,
+          fullname:
+            candidate.fullname || name || null,
           phone: phone || candidate.phone,
-          location: location || candidate.location,
-          resumeUrl: resumeUrl || candidate.resumeUrl,
+          location:
+            location || candidate.location,
+          resumeUrl:
+            resumeUrl || candidate.resumeUrl,
+          source: candidate.source || source,
+          ...(candidate.jobId
+            ? {}
+            : {
+                job: {
+                  connect: { id: job.id },
+                },
+              }),
         },
       });
     }
 
-    // 3) Create Application
-    const application = await prisma.application.create({
-      data: {
-        jobId: job.id,
-        candidateId: candidate.id,
-        stage: "APPLIED",
-        source: source || "inbound",
-      },
-    });
+    // Create application record
+    const application =
+      await prisma.application.create({
+        data: {
+          job: { connect: { id: job.id } },
+          // If your Application model has a candidate relation, you can enable this:
+          // candidate: { connect: { id: candidate.id } },
+          fullName:
+            name ||
+            candidate.fullname ||
+            "Candidate",
+          email: normalizedEmail,
+          phone: phone || candidate.phone,
+          location:
+            location || candidate.location,
+          source,
+          resumeUrl,
+          stage: "APPLIED",
+        } as any,
+      });
 
     return NextResponse.json(
       {
-        ok: true,
-        message: "Application submitted successfully.",
+        success: true,
         applicationId: application.id,
       },
-      { status: 201 }
+      { status: 200 }
     );
-  } catch (err) {
-    console.error("Apply API error:", err);
+  } catch (error) {
+    console.error("Apply API error:", error);
     return NextResponse.json(
       {
-        ok: false,
-        message: "Something went wrong while submitting your application.",
+        success: false,
+        error: "Something went wrong",
       },
       { status: 500 }
     );
