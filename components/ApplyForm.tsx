@@ -13,7 +13,7 @@ export default function ApplyForm({ jobTitle, jobSlug }: ApplyFormProps) {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [location, setLocation] = useState("");
-  const [cvFile, setCvFile] = useState<File | null>(null);
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -25,40 +25,47 @@ export default function ApplyForm({ jobTitle, jobSlug }: ApplyFormProps) {
     setMessage(null);
     setIsError(false);
 
-    let uploadedResumeUrl: string | null = null;
+    let resumeUrl: string | null = null;
     let uploadErrorMessage: string | null = null;
 
     try {
-      // 1) Upload CV to Supabase Storage (if a file was selected)
-      if (cvFile) {
-        const fd = new FormData();
-        fd.append("file", cvFile);
-        fd.append("jobSlug", jobSlug);
+      // 1) Upload CV if a file is selected
+      if (resumeFile) {
+        const formData = new FormData();
+        formData.append("file", resumeFile);
+        formData.append("jobSlug", jobSlug);
 
         const uploadRes = await fetch("/api/upload-resume", {
           method: "POST",
-          body: fd,
+          body: formData,
         });
 
-        let uploadData: any = null;
+        const rawText = await uploadRes.text();
+        let payload: any = null;
+
         try {
-          uploadData = await uploadRes.json();
+          payload = JSON.parse(rawText);
         } catch {
-          // ignore JSON parse errors – will handle as generic
+          // Not JSON (e.g. an HTML error page) – still useful to see in logs
+          console.error("Upload response not JSON:", rawText);
         }
 
-        if (uploadRes.ok && uploadData?.ok && uploadData?.url) {
-          uploadedResumeUrl = uploadData.url as string;
-        } else {
+        const ok = uploadRes.ok && payload?.ok;
+
+        if (!ok) {
           uploadErrorMessage =
-            uploadData?.message ||
-            "Supabase storage could not upload the CV file.";
-          console.warn("CV upload failed:", uploadErrorMessage);
+            payload?.message ||
+            rawText ||
+            `Upload failed with status ${uploadRes.status}`;
+
+          console.error("Resume upload failed:", uploadErrorMessage);
+        } else {
+          resumeUrl = payload?.url ?? null;
         }
       }
 
-      // 2) Create application in Prisma
-      const res = await fetch("/api/apply", {
+      // 2) Create the application – always
+      const applyRes = await fetch("/api/apply", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -68,43 +75,43 @@ export default function ApplyForm({ jobTitle, jobSlug }: ApplyFormProps) {
           jobTitle,
           name,
           email,
-          phone,
-          location,
-          resumeUrl: uploadedResumeUrl, // may be null
+          phone: phone || null,
+          location: location || null,
           source: "website",
+          resumeUrl, // may be null if upload failed
         }),
       });
 
-      const data = await res.json();
+      const applyData = await applyRes.json();
 
-      if (!res.ok || !data?.ok) {
+      if (!applyRes.ok || !applyData?.ok) {
         setIsError(true);
         setMessage(
-          data?.message ||
+          applyData?.message ||
             "We couldn’t submit your application. Please try again or email us directly."
         );
         return;
       }
 
-      // 3) Application succeeded
-      setIsError(false);
-
+      // 3) Final feedback to user
       if (uploadErrorMessage) {
+        setIsError(false);
         setMessage(
           `Your application has been received, but your CV upload failed: ${uploadErrorMessage}. Please email your CV to hello@resourcin.com with the role title in the subject.`
         );
       } else {
+        setIsError(false);
         setMessage("Thank you — your application has been received.");
       }
 
-      // Reset form
+      // Reset fields
       setName("");
       setEmail("");
       setPhone("");
       setLocation("");
-      setCvFile(null);
-    } catch (error) {
-      console.error(error);
+      setResumeFile(null);
+    } catch (err) {
+      console.error("Apply error:", err);
       setIsError(true);
       setMessage(
         "Something went wrong while submitting your application. Please try again."
@@ -191,26 +198,31 @@ export default function ApplyForm({ jobTitle, jobSlug }: ApplyFormProps) {
           </div>
         </div>
 
-        {/* CV / Resume file */}
+        {/* CV / Resume file upload */}
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">
             CV / Resume file
           </label>
           <input
             type="file"
-            accept=".pdf,.doc,.docx"
+            accept=".pdf,.doc,.docx,.rtf,.txt"
             onChange={(e) => {
-              const file = e.target.files?.[0] || null;
-              setCvFile(file);
+              const file = e.target.files?.[0] ?? null;
+              setResumeFile(file);
             }}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#172965] focus:border-[#172965]"
+            className="block w-full text-xs text-slate-500
+                       file:mr-3 file:rounded-full file:border-0
+                       file:bg-[#172965] file:px-4 file:py-2
+                       file:text-xs file:font-semibold file:text-white
+                       hover:file:bg-[#101c44]"
           />
           <p className="mt-1 text-[11px] text-slate-500">
-            Upload a PDF or Word document. Max 50MB.
+            If upload fails, your application will still go through and you can
+            email your CV separately.
           </p>
         </div>
 
-        {/* Button + message */}
+        {/* Button + feedback */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <button
             type="submit"
