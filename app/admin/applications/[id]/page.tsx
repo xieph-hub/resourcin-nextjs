@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import ApplicationStageSelect from "@/components/ApplicationStageSelect";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type PageProps = {
   params: {
@@ -140,7 +141,7 @@ export default async function ApplicationDetailPage({ params }: PageProps) {
       </section>
 
       {/* Meta */}
-      <section className="rounded-2xl border border-slate-200 bg:white/80 p-4 text-xs text-slate-500 shadow-sm">
+      <section className="rounded-2xl border border-slate-200 bg-white/80 p-4 text-xs text-slate-500 shadow-sm">
         <p>
           Application ID:{" "}
           <span className="font-mono text-slate-700">{application.id}</span>
