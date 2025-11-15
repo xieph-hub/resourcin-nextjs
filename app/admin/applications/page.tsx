@@ -1,7 +1,7 @@
 // app/admin/applications/page.tsx
 import { prisma } from "@/lib/prisma";
-import { updateApplicationStage } from "./actions";
 import Link from "next/link";
+import { updateApplicationStage } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ const STAGES = [
   "REJECTED",
 ];
 
-type AdminApplicationsPageProps = {
+type PageProps = {
   searchParams?: {
     jobId?: string;
     stage?: string;
@@ -22,9 +22,7 @@ type AdminApplicationsPageProps = {
   };
 };
 
-export default async function AdminApplicationsPage({
-  searchParams,
-}: AdminApplicationsPageProps) {
+export default async function AdminApplicationsPage({ searchParams }: PageProps) {
   const jobIdFilter = (searchParams?.jobId || "").trim();
   const stageFilter = (searchParams?.stage || "").trim();
   const q = (searchParams?.q || "").trim();
@@ -63,7 +61,10 @@ export default async function AdminApplicationsPage({
   const [jobs, applications] = await Promise.all([
     prisma.job.findMany({
       orderBy: { postedAt: "desc" },
-      select: { id: true, title: true },
+      select: {
+        id: true,
+        title: true,
+      },
     }),
     prisma.application.findMany({
       where,
@@ -104,8 +105,8 @@ export default async function AdminApplicationsPage({
             >
               /jobs
             </Link>{" "}
-            and your external campaigns. Filter by role, stage, or candidate
-            identity and move people across your pipeline.
+            and your external campaigns. Filter by role, stage, or candidate and
+            move people across your pipeline.
           </p>
         </header>
 
@@ -314,11 +315,14 @@ export default async function AdminApplicationsPage({
                           {appliedDate || "—"}
                         </td>
 
-                        {/* Actions (placeholder for future detail view) */}
+                        {/* Actions */}
                         <td className="px-4 py-2 align-top text-right">
-                          <span className="text-[10px] text-slate-500">
-                            More coming soon
-                          </span>
+                          <Link
+                            href={`/admin/applications/${app.id}`}
+                            className="inline-flex items-center rounded-full border border-slate-600 px-3 py-1.5 text-[10px] text-slate-100 hover:border-[#FFB703] hover:text-[#FFB703] transition"
+                          >
+                            View details
+                          </Link>
                         </td>
                       </tr>
                     );
