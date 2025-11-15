@@ -37,16 +37,11 @@ async function addApplicationNote(formData: FormData) {
 
   // Use the relation on Application so we don't care about the underlying model name
   await prisma.application.update({
-    where: { id: applicationId },
-    data: {
-      notes: {
-        create: {
-          body,
-          author,
-        },
-      },
-    },
-  });
+  where: { id: params.id },
+  data: {
+    notes: body,
+  },
+});
 
   revalidatePath(`/admin/applications/${applicationId}`);
 }
