@@ -46,35 +46,38 @@ export default function ApplyForm({ jobTitle, jobSlug }: ApplyFormProps) {
       }
 
       let resumeUrl: string | null = null;
+      let uploadError: string | null = null;
 
-      // 1) Upload CV file if present
+      // 1) Try to upload CV file if present — but DO NOT block application if this fails
       if (resumeFile) {
-        const uploadForm = new FormData();
-        uploadForm.append("file", resumeFile);
-        uploadForm.append("jobSlug", effectiveJobSlug || "general");
+        try {
+          const uploadForm = new FormData();
+          uploadForm.append("file", resumeFile);
+          uploadForm.append("jobSlug", effectiveJobSlug || "general");
 
-        const uploadRes = await fetch("/api/upload-resume", {
-          method: "POST",
-          body: uploadForm,
-        });
+          const uploadRes = await fetch("/api/upload-resume", {
+            method: "POST",
+            body: uploadForm,
+          });
 
-        const uploadData = await uploadRes.json().catch(() => null);
+          const uploadData = await uploadRes.json().catch(() => null);
 
-        if (!uploadRes.ok || !uploadData?.ok) {
-          console.error("Resume upload failed", uploadData);
-          setIsError(true);
-          setMessage(
-            uploadData?.message ||
-              "We couldn’t upload your CV. Please try again or email us directly."
-          );
-          setIsSubmitting(false);
-          return;
+          if (!uploadRes.ok || !uploadData?.ok) {
+            console.error("Resume upload failed", uploadData);
+            uploadError =
+              uploadData?.message ||
+              "We couldn’t upload your CV. Please email it to hello@resourcin.com.";
+          } else {
+            resumeUrl = uploadData.url as string;
+          }
+        } catch (err) {
+          console.error("Resume upload threw:", err);
+          uploadError =
+            "We couldn’t upload your CV due to a technical issue. Please email it to hello@resourcin.com.";
         }
-
-        resumeUrl = uploadData.url as string;
       }
 
-      // 2) Call existing /api/apply with the resumeUrl (old behaviour preserved)
+      // 2) Call existing /api/apply regardless of upload result
       const res = await fetch("/api/apply", {
         method: "POST",
         headers: {
@@ -102,7 +105,16 @@ export default function ApplyForm({ jobTitle, jobSlug }: ApplyFormProps) {
         );
       } else {
         setIsError(false);
-        setMessage("Thank you — your application has been received.");
+
+        if (uploadError) {
+          setMessage(
+            `Your application has been received, but your CV upload failed. Please email your CV to hello@resourcin.com with the role title in the subject.`
+          );
+        } else {
+          setMessage("Thank you — your application has been received.");
+        }
+
+        // Clear the form
         setName("");
         setEmail("");
         setPhone("");
@@ -213,8 +225,7 @@ export default function ApplyForm({ jobTitle, jobSlug }: ApplyFormProps) {
                        hover:file:bg-[#101c44]"
           />
           <p className="mt-1 text-[11px] text-slate-500">
-            Upload your CV in PDF or Word format. Max size ~5–10MB is
-            recommended.
+            Upload your CV in PDF or Word format. Max size ~10MB is recommended.
           </p>
         </div>
 
