@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     if (!candidate) {
       candidate = await prisma.candidate.create({
         data: {
-          name,
+          fullname: name,
           email: normalizedEmail,
           phone: phone || null,
           location: location || null,
