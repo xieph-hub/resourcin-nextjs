@@ -1,64 +1,110 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-
-export const runtime = "nodejs";
+import { prisma } from "../../../../lib/prisma";
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    const fullName = (body?.fullName as string | undefined)?.trim();
-    const email = (body?.email as string | undefined)?.toLowerCase().trim();
-    const phone = (body?.phone as string | undefined)?.trim() || null;
-    const location = (body?.location as string | undefined)?.trim() || null;
-    const resumeUrl = (body?.resumeUrl as string | undefined)?.trim() || null;
-    const source =
-      (body?.source as string | undefined)?.trim() || "Sourced (manual)";
-    const rawText = (body?.rawText as string | undefined)?.trim() || null;
+    const {
+      fullName,
+      email,
+      phone,
+      city,
+      country,
+      headline,
+      summary,
+      currentRole,
+      currentCompany,
+      totalExperienceYears,
+      level,
+      functions,
+      industries,
+      skills,
+      preferredLocations,
+      workPreference,
+      salaryCurrency,
+      salaryMin,
+      salaryMax,
+      noticePeriod,
+      cvUrl,
+      source,
+      location, // in case old clients send a single location string
+    } = body as {
+      fullName?: string;
+      email?: string;
+      phone?: string;
+      city?: string;
+      country?: string;
+      headline?: string;
+      summary?: string;
+      currentRole?: string;
+      currentCompany?: string;
+      totalExperienceYears?: number;
+      level?: string;
+      functions?: string;
+      industries?: string;
+      skills?: string;
+      preferredLocations?: string;
+      workPreference?: string;
+      salaryCurrency?: string;
+      salaryMin?: number;
+      salaryMax?: number;
+      noticePeriod?: string;
+      cvUrl?: string;
+      source?: string;
+      location?: string;
+    };
 
     if (!fullName || !email) {
       return NextResponse.json(
-        {
-          ok: false,
-          message: "Full name and email are required.",
-        },
+        { error: "fullName and email are required" },
         { status: 400 }
       );
     }
 
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Create a new sourced candidate (no upsert here, this is for sourcing pipeline)
     const candidate = await prisma.candidate.create({
       data: {
-        fullname: fullName,
-        email,
-        phone,
-        location,
-        resumeUrl,
-        source,
-        rawText,
-        // jobId is optional; for general sourcing we leave it null
+        fullName,
+        email: normalizedEmail,
+        phone: phone ?? null,
+        city: city ?? location ?? null,
+        country: country ?? null,
+        headline: headline ?? null,
+        summary: summary ?? null,
+        currentRole: currentRole ?? null,
+        currentCompany: currentCompany ?? null,
+        totalExperienceYears: totalExperienceYears ?? null,
+
+        level: level ?? null,
+        functions: functions ?? null,
+        industries: industries ?? null,
+        skills: skills ?? null,
+
+        preferredLocations: preferredLocations ?? null,
+        workPreference: workPreference ?? null,
+        salaryCurrency: salaryCurrency ?? null,
+        salaryMin: salaryMin ?? null,
+        salaryMax: salaryMax ?? null,
+        noticePeriod: noticePeriod ?? null,
+
+        cvUrl: cvUrl ?? null,
+        source: source ?? "sourcing",
+        status: "active",
       },
     });
 
-    return NextResponse.json({
-      ok: true,
-      candidate: {
-        id: candidate.id,
-        fullname: candidate.fullname,
-        email: candidate.email,
-        phone: candidate.phone,
-        location: candidate.location,
-        source: candidate.source,
-        createdAt: candidate.createdAt.toISOString(),
-      },
-    });
-  } catch (error) {
-    console.error("[/api/sourcing/create] error:", error);
     return NextResponse.json(
       {
-        ok: false,
-        message: "Failed to save candidate.",
+        ok: true,
+        candidateId: candidate.id,
       },
-      { status: 500 }
+      { status: 201 }
     );
-  }
-}
+  } catch (error) {
+    console.error("Error in /api/sourcing/create", error);
+    return NextResponse.json(
+      { error: "Something went wrong creating sourced candidate" },
+      { status: 500
