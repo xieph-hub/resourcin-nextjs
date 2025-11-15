@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 
 export default async function CandidatesPage() {
-  // We cast to any to avoid wrestling with Prisma's TS types here
+  // Cast to any to keep TypeScript from being too strict here
   const candidates = (await prisma.candidate.findMany({
     include: {
       job: {
@@ -14,8 +14,6 @@ export default async function CandidatesPage() {
       },
     },
     orderBy: {
-      // if createdAt exists, great; Prisma will handle it
-      // if not, this will be ignored at runtime since we are in codegen
       id: "desc",
     } as any,
   })) as any[];
