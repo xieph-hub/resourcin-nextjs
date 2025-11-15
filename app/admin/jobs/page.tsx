@@ -1,6 +1,6 @@
 // app/admin/jobs/page.tsx
 import { prisma } from "@/lib/prisma";
-import { createJob } from "./actions";
+import { createJob, toggleJobPublish } from "./actions";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ export default async function AdminJobsPage() {
           </p>
           <h1 className="text-2xl font-semibold">Job mandates</h1>
           <p className="text-sm text-slate-300 max-w-2xl">
-            Create and manage roles that appear on{" "}
+            Create, publish, and refine roles that appear on{" "}
             <Link
               href="/jobs"
               className="underline text-slate-100 hover:text-white"
@@ -37,8 +37,9 @@ export default async function AdminJobsPage() {
         <section className="rounded-xl border border-slate-800 bg-slate-900/40 p-6">
           <h2 className="text-sm font-semibold mb-1">Create new job</h2>
           <p className="text-xs text-slate-400 mb-4">
-            Only title and description are truly essential. Slug is optional —
-            we&apos;ll generate one if you leave it blank.
+            Title and description are essential. Slug is optional — we&apos;ll
+            generate one if you leave it blank. New jobs start as{" "}
+            <span className="text-emerald-300">published</span> by default.
           </p>
 
           <form action={createJob} className="space-y-4">
@@ -182,10 +183,13 @@ export default async function AdminJobsPage() {
                       Type
                     </th>
                     <th className="px-4 py-2 text-left font-medium text-slate-400">
+                      Status
+                    </th>
+                    <th className="px-4 py-2 text-left font-medium text-slate-400">
                       Posted
                     </th>
                     <th className="px-4 py-2 text-right font-medium text-slate-400">
-                      Link
+                      Actions
                     </th>
                   </tr>
                 </thead>
@@ -224,15 +228,55 @@ export default async function AdminJobsPage() {
                         <td className="px-4 py-2 align-top text-slate-300">
                           {job.type || "—"}
                         </td>
+                        <td className="px-4 py-2 align-top">
+                          <div
+                            className={`inline-flex items-center rounded-full border px-2 py-1 text-[10px] ${
+                              job.isPublished
+                                ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-300"
+                                : "border-slate-600/60 bg-slate-800 text-slate-300"
+                            }`}
+                          >
+                            <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current" />
+                            {job.isPublished ? "Published" : "Hidden"}
+                          </div>
+                        </td>
                         <td className="px-4 py-2 align-top text-slate-300">
                           {posted || "—"}
                         </td>
-                        <td className="px-4 py-2 align-top text-right">
+                        <td className="px-4 py-2 align-top text-right space-x-2">
+                          {/* Publish / Unpublish */}
+                          <form
+                            action={toggleJobPublish}
+                            className="inline-block"
+                          >
+                            <input type="hidden" name="id" value={job.id} />
+                            <input
+                              type="hidden"
+                              name="next"
+                              value={job.isPublished ? "false" : "true"}
+                            />
+                            <button
+                              type="submit"
+                              className="rounded-full border border-slate-600 px-3 py-1 text-[10px] text-slate-100 hover:border-[#FFB703] hover:text-[#FFB703] transition"
+                            >
+                              {job.isPublished ? "Unpublish" : "Publish"}
+                            </button>
+                          </form>
+
+                          {/* Edit */}
+                          <Link
+                            href={`/admin/jobs/${job.id}`}
+                            className="rounded-full border border-slate-600 px-3 py-1 text-[10px] text-slate-100 hover:border-slate-200 hover:text-slate-50 transition"
+                          >
+                            Edit
+                          </Link>
+
+                          {/* View */}
                           <Link
                             href={`/jobs/${job.slug}`}
-                            className="text-[11px] text-[#FFB703] hover:text-[#ffca3a] underline"
+                            className="rounded-full border border-slate-700 px-3 py-1 text-[10px] text-slate-200 hover:border-[#FFB703] hover:text-[#FFB703] transition"
                           >
-                            View page →
+                            View
                           </Link>
                         </td>
                       </tr>
