@@ -1,19 +1,37 @@
 // app/jobs/[slug]/page.tsx
-import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import ApplyForm from "@/components/ApplyForm";
+
+export const dynamic = "force-dynamic";
 
 type JobPageProps = {
   params: { slug: string };
 };
 
 export default async function JobPage({ params }: JobPageProps) {
-  const job = await prisma.job.findUnique({
-    where: { slug: params.slug },
+  // Fetch by slug + published (safer than findUnique right now)
+  const job = await prisma.job.findFirst({
+    where: {
+      slug: params.slug,
+      isPublished: true,
+    },
   });
 
-  if (!job || !job.isPublished) {
-    notFound();
+  // If no job, show an in-page message (NOT Next.js 404)
+  if (!job) {
+    return (
+      <main className="min-h-screen bg-slate-50">
+        <section className="mx-auto max-w-3xl px-4 py-16 text-center">
+          <h1 className="text-2xl font-semibold text-slate-900 mb-3">
+            Job not found
+          </h1>
+          <p className="text-sm text-slate-600">
+            This role may no longer be available, or the link might be
+            incorrect.
+          </p>
+        </section>
+      </main>
+    );
   }
 
   const postedDate = job.postedAt
@@ -27,6 +45,7 @@ export default async function JobPage({ params }: JobPageProps) {
   return (
     <main className="min-h-screen bg-slate-50">
       <section className="mx-auto max-w-5xl px-4 pb-16 pt-10">
+        {/* Header */}
         <div className="mb-6">
           <p className="text-xs uppercase tracking-wide text-slate-500">
             Open role
@@ -35,12 +54,16 @@ export default async function JobPage({ params }: JobPageProps) {
             {job.title}
           </h1>
           <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
-            <span className="inline-flex items-center rounded-full border border-slate-200 px-3 py-1">
-              {job.location}
-            </span>
-            <span className="inline-flex items-center rounded-full border border-slate-200 px-3 py-1">
-              {job.type}
-            </span>
+            {job.location && (
+              <span className="inline-flex items-center rounded-full border border-slate-200 px-3 py-1">
+                {job.location}
+              </span>
+            )}
+            {job.type && (
+              <span className="inline-flex items-center rounded-full border border-slate-200 px-3 py-1">
+                {job.type}
+              </span>
+            )}
             {job.department && (
               <span className="inline-flex items-center rounded-full border border-slate-200 px-3 py-1">
                 {job.department}
@@ -54,13 +77,16 @@ export default async function JobPage({ params }: JobPageProps) {
           </div>
         </div>
 
+        {/* Layout: description + apply form */}
         <div className="grid gap-8 md:grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)]">
+          {/* Description */}
           <article className="prose prose-sm max-w-none text-slate-800 prose-headings:text-slate-900 prose-a:text-[#172965]">
             <p className="whitespace-pre-line leading-relaxed">
               {job.description}
             </p>
           </article>
 
+          {/* Apply form */}
           <ApplyForm jobTitle={job.title} jobId={job.id} />
         </div>
       </section>
