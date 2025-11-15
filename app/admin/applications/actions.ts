@@ -4,12 +4,15 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
+/**
+ * Update the stage of an application from the list or detail view.
+ */
 export async function updateApplicationStage(formData: FormData) {
   const id = String(formData.get("id") || "").trim();
   const stage = String(formData.get("stage") || "").trim();
 
   if (!id || !stage) {
-    throw new Error("Missing fields for updating application stage");
+    return;
   }
 
   await prisma.application.update({
@@ -17,6 +20,7 @@ export async function updateApplicationStage(formData: FormData) {
     data: { stage },
   });
 
-  // Refresh the applications view
+  // Refresh list + detail view
   revalidatePath("/admin/applications");
+  revalidatePath(`/admin/applications/${id}`);
 }
