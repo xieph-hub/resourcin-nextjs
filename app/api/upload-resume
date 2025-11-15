@@ -5,21 +5,26 @@ import { createClient } from "@supabase/supabase-js";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-function getSupabase() {
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error(
-      "SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing on the server."
-    );
-  }
-  return createClient(supabaseUrl, supabaseServiceKey);
-}
+const supabase =
+  SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+    ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    : null;
 
 export async function POST(req: Request) {
   try {
-    const supabase = getSupabase();
+    if (!supabase) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message:
+            "Supabase client not initialised. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Vercel.",
+        },
+        { status: 500 }
+      );
+    }
 
     const formData = await req.formData();
     const file = formData.get("file");
@@ -27,14 +32,12 @@ export async function POST(req: Request) {
 
     if (!(file instanceof File)) {
       return NextResponse.json(
-        { ok: false, message: "No file was received by the server." },
+        { ok: false, message: "No file received by the server." },
         { status: 400 }
       );
     }
 
-    // Convert the File → Buffer for Node.js
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const arrayBuffer = await file.arrayBuffer(); // this is what supabase-js expects
 
     const jobSlug =
       typeof jobSlugRaw === "string" && jobSlugRaw.trim().length > 0
@@ -42,30 +45,29 @@ export async function POST(req: Request) {
         : "general";
 
     const safeSlug = jobSlug.replace(/[^a-zA-Z0-9-_]/g, "-") || "general";
-
     const originalName = file.name || "cv";
     const safeName = originalName.replace(/[^\w.-]/g, "_");
     const timestamp = Date.now();
     const path = `${safeSlug}/${timestamp}-${safeName}`;
 
     const { data, error } = await supabase.storage
-      .from("resumes")
-      .upload(path, buffer, {
+      .from("resumes") // bucket name must be EXACTLY "resumes"
+      .upload(path, arrayBuffer, {
         cacheControl: "3600",
         upsert: false,
         contentType: file.type || "application/octet-stream",
       });
 
     if (error || !data) {
-      console.error("Supabase upload error:", error);
-      const details =
+      console.error("Supabase storage error:", error);
+      const msg =
         (error as any)?.message ||
-        (typeof error === "object" ? JSON.stringify(error) : String(error));
+        JSON.stringify(error, Object.getOwnPropertyNames(error ?? {}));
 
       return NextResponse.json(
         {
           ok: false,
-          message: `Supabase error: ${details}`,
+          message: `Supabase storage error: ${msg}`,
         },
         { status: 500 }
       );
@@ -80,11 +82,15 @@ export async function POST(req: Request) {
       { status: 200 }
     );
   } catch (err: any) {
-    console.error("Upload handler error:", err);
+    console.error("Upload-resume route fatal error:", err);
     const msg =
       typeof err?.message === "string"
         ? err.message
-        : JSON.stringify(err, Object.getOwnPropertyNames(err));
-    return NextResponse.json({ ok: false, message: msg }, { status: 500 });
+        : JSON.stringify(err, Object.getOwnPropertyNames(err ?? {}));
+
+    return NextResponse.json(
+      { ok: false, message: `Route crash: ${msg}` },
+      { status: 500 }
+    );
   }
 }
