@@ -85,7 +85,7 @@ export default function Page() {
               </li>
               <li>
                 <span className="font-medium">For Job Seekers:</span> curated opportunities, expert guidance, and
-                tools to advance your career with confidence.
+                tools to advance your career.
               </li>
             </ul>
           </div>
