@@ -1,5 +1,4 @@
 // app/jobs/page.tsx
-
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 
@@ -7,334 +6,242 @@ export const dynamic = "force-dynamic";
 
 type JobsPageProps = {
   searchParams?: {
-    q?: string | string[];
-    department?: string | string[];
-    location?: string | string[];
-    type?: string | string[];
+    q?: string;
+    location?: string;
+    type?: string;
+    department?: string;
   };
 };
 
-function normalizeParam(value: string | string[] | undefined): string {
-  if (!value) return "";
-  return Array.isArray(value) ? value[0] : value;
-}
-
 export default async function JobsPage({ searchParams }: JobsPageProps) {
-  const q = normalizeParam(searchParams?.q).trim();
-  const departmentFilter = normalizeParam(searchParams?.department);
-  const locationFilter = normalizeParam(searchParams?.location);
-  const typeFilter = normalizeParam(searchParams?.type);
+  const q = (searchParams?.q ?? "").trim();
+  const locationFilter = (searchParams?.location ?? "").trim();
+  const typeFilter = (searchParams?.type ?? "").trim();
+  const deptFilter = (searchParams?.department ?? "").trim();
 
-  // 1) Get all published jobs
+  // 1) Pull all jobs (we can later add isPublished if you're using it)
   const jobs = await prisma.job.findMany({
-    where: {
-      isPublished: true,
-    },
     orderBy: {
       postedAt: "desc",
     },
   });
 
   // 2) Build filter options from existing jobs
-  const departments = Array.from(
-    new Set(jobs.map((job) => job.department).filter(Boolean))
-  ).sort();
   const locations = Array.from(
-    new Set(jobs.map((job) => job.location).filter(Boolean))
-  ).sort();
+    new Set(jobs.map((j) => j.location).filter(Boolean))
+  ) as string[];
+
   const types = Array.from(
-    new Set(jobs.map((job) => job.type).filter(Boolean))
-  ).sort();
+    new Set(jobs.map((j) => j.type).filter(Boolean))
+  ) as string[];
+
+  const departments = Array.from(
+    new Set(jobs.map((j) => j.department).filter(Boolean))
+  ) as string[];
 
   // 3) Apply filters + search in memory
   const filteredJobs = jobs.filter((job) => {
-    // Department filter
-    if (departmentFilter && job.department !== departmentFilter) {
-      return false;
-    }
-
-    // Location filter
-    if (locationFilter && job.location !== locationFilter) {
-      return false;
-    }
-
-    // Type filter
-    if (typeFilter && job.type !== typeFilter) {
-      return false;
-    }
-
-    // Search filter
     if (q) {
       const haystack = (
-        `${job.title} ${job.excerpt} ${job.department} ${job.location} ${job.type}`
+        (job.title || "") +
+        " " +
+        (job.excerpt || "") +
+        " " +
+        (job.description || "")
       ).toLowerCase();
-      if (!haystack.includes(q.toLowerCase())) {
-        return false;
-      }
+      if (!haystack.includes(q.toLowerCase())) return false;
     }
-
+    if (locationFilter && job.location !== locationFilter) return false;
+    if (typeFilter && job.type !== typeFilter) return false;
+    if (deptFilter && job.department !== deptFilter) return false;
     return true;
   });
 
-  const totalJobs = jobs.length;
-  const totalVisible = filteredJobs.length;
+  const totalCount = jobs.length;
+  const showingCount = filteredJobs.length;
+
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL || "https://www.resourcin.com";
 
   return (
-    <main className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-5xl px-4 py-10 space-y-8">
+    <main className="min-h-screen bg-slate-950 text-slate-50">
+      <div className="max-w-5xl mx-auto px-4 py-16">
         {/* Header */}
-        <header className="space-y-3">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#172965]">
-            Resourcin · Opportunities
-          </p>
-          <h1 className="text-3xl font-semibold text-slate-900">
+        <header className="mb-10 space-y-3">
+          <p className="text-[11px] uppercase tracking-[0.15em] text-[#FFB703] font-semibold">
             Open roles
+          </p>
+          <h1 className="text-2xl md:text-3xl font-semibold">
+            Join teams we&apos;re hiring for
           </h1>
-          <p className="max-w-2xl text-sm text-slate-600">
-            Explore current mandates we&apos;re running for our clients and
-            internal teams. Each role comes with clear expectations, reporting
-            lines, and impact.
+          <p className="text-sm text-slate-300 max-w-2xl">
+            Curated mandates across fintech, SaaS, and high-growth businesses.
+            Filter by location or role type, then share roles directly to
+            LinkedIn or X.
           </p>
         </header>
 
-        {/* Filters + search */}
-        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-xs font-medium text-slate-700">
-                {totalVisible} role{totalVisible === 1 ? "" : "s"} showing
-                {totalJobs !== totalVisible
-                  ? ` · filtered from ${totalJobs} total`
-                  : ""}
-              </p>
-              <p className="text-[11px] text-slate-500">
-                Use search and filters to narrow down by department, location or
-                work type.
-              </p>
-            </div>
+        {/* Filters: pure server-side via query params */}
+        <form
+          className="mb-8 grid gap-3 md:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))]"
+          method="GET"
+        >
+          {/* Search input */}
+          <input
+            name="q"
+            defaultValue={q}
+            placeholder="Search by title, keyword, company…"
+            className="rounded-full border border-slate-800 bg-slate-900/60 px-4 py-2 text-xs outline-none placeholder:text-slate-500 focus:border-[#FFB703] focus:ring-1 focus:ring-[#FFB703]"
+          />
 
-            {/* Search form (GET) */}
-            <form className="w-full md:w-64" action="/jobs" method="get">
-              <input
-                type="text"
-                name="q"
-                defaultValue={q}
-                placeholder="Search by role, location..."
-                className="w-full rounded-full border border-slate-300 px-3 py-2 text-xs outline-none focus:border-[#172965] focus:ring-2 focus:ring-[#172965]"
-              />
-              {/* Preserve other filters when searching */}
-              {departmentFilter && (
-                <input
-                  type="hidden"
-                  name="department"
-                  value={departmentFilter}
-                />
-              )}
-              {locationFilter && (
-                <input type="hidden" name="location" value={locationFilter} />
-              )}
-              {typeFilter && (
-                <input type="hidden" name="type" value={typeFilter} />
-              )}
-            </form>
+          {/* Location filter */}
+          <select
+            name="location"
+            defaultValue={locationFilter}
+            className="rounded-full border border-slate-800 bg-slate-900/60 px-4 py-2 text-xs outline-none focus:border-[#FFB703] focus:ring-1 focus:ring-[#FFB703]"
+          >
+            <option value="">All locations</option>
+            {locations.map((loc) => (
+              <option key={loc} value={loc}>
+                {loc}
+              </option>
+            ))}
+          </select>
+
+          {/* Type filter */}
+          <select
+            name="type"
+            defaultValue={typeFilter}
+            className="rounded-full border border-slate-800 bg-slate-900/60 px-4 py-2 text-xs outline-none focus:border-[#FFB703] focus:ring-1 focus:ring-[#FFB703]"
+          >
+            <option value="">All types</option>
+            {types.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+
+          {/* Department filter */}
+          <select
+            name="department"
+            defaultValue={deptFilter}
+            className="rounded-full border border-slate-800 bg-slate-900/60 px-4 py-2 text-xs outline-none focus:border-[#FFB703] focus:ring-1 focus:ring-[#FFB703]"
+          >
+            <option value="">All teams</option>
+            {departments.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+        </form>
+
+        {/* Meta line */}
+        <div className="mb-4 text-[11px] text-slate-400 flex justify-between items-center gap-3">
+          <span>
+            Showing <span className="text-slate-100">{showingCount}</span> of{" "}
+            <span className="text-slate-100">{totalCount}</span> open roles
+          </span>
+          <span>Powered by Resourcin ATS</span>
+        </div>
+
+        {/* Job list */}
+        {filteredJobs.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-800 bg-slate-900/40 px-6 py-10 text-center text-sm text-slate-400">
+            No roles match your filters yet. Try clearing filters or check back
+            soon.
           </div>
+        ) : (
+          <ul className="space-y-3">
+            {filteredJobs.map((job) => {
+              const jobUrl = `${siteUrl}/jobs/${job.slug}`;
 
-          {/* Filter pills */}
-          <div className="flex flex-wrap gap-3 text-[11px]">
-            {/* Department filter */}
-            {departments.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1">
-                <span className="mr-1 text-slate-500">Department:</span>
-                <FilterPill
-                  label="All"
-                  isActive={!departmentFilter}
-                  href={{
-                    q,
-                    location: locationFilter,
-                    type: typeFilter,
-                    department: "",
-                  }}
-                />
-                {departments.map((dept) => (
-                  <FilterPill
-                    key={dept}
-                    label={dept}
-                    isActive={departmentFilter === dept}
-                    href={{
-                      q,
-                      location: locationFilter,
-                      type: typeFilter,
-                      department: dept,
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-
-            {/* Location filter */}
-            {locations.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1">
-                <span className="mr-1 text-slate-500">Location:</span>
-                <FilterPill
-                  label="All"
-                  isActive={!locationFilter}
-                  href={{
-                    q,
-                    department: departmentFilter,
-                    type: typeFilter,
-                    location: "",
-                  }}
-                />
-                {locations.map((loc) => (
-                  <FilterPill
-                    key={loc}
-                    label={loc}
-                    isActive={locationFilter === loc}
-                    href={{
-                      q,
-                      department: departmentFilter,
-                      type: typeFilter,
-                      location: loc,
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-
-            {/* Type filter */}
-            {types.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1">
-                <span className="mr-1 text-slate-500">Type:</span>
-                <FilterPill
-                  label="All"
-                  isActive={!typeFilter}
-                  href={{
-                    q,
-                    department: departmentFilter,
-                    location: locationFilter,
-                    type: "",
-                  }}
-                />
-                {types.map((t) => (
-                  <FilterPill
-                    key={t}
-                    label={t}
-                    isActive={typeFilter === t}
-                    href={{
-                      q,
-                      department: departmentFilter,
-                      location: locationFilter,
-                      type: t,
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* Jobs list */}
-        <section className="space-y-3">
-          {filteredJobs.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-300 bg-white/60 p-6 text-center text-sm text-slate-500">
-              No roles match these filters yet. Try clearing some filters or
-              checking back later.
-            </div>
-          ) : (
-            <ul className="space-y-3">
-              {filteredJobs.map((job) => (
-                <li key={job.id}>
-                  <Link
-                    href={`/jobs/${job.slug}`}
-                    className="block rounded-xl border border-slate-200 bg-white p-4 transition hover:border-[#172965] hover:shadow-sm"
-                  >
-                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                      <div className="space-y-1.5">
-                        <h2 className="text-sm font-semibold text-slate-900">
+              return (
+                <li
+                  key={job.id}
+                  className="group rounded-xl border border-slate-800 bg-slate-900/40 px-5 py-4 transition hover:border-[#FFB703] hover:bg-slate-900"
+                >
+                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                    {/* Left side: title & meta */}
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/jobs/${job.slug}`}
+                          className="text-sm font-medium text-slate-50 group-hover:text-white"
+                        >
                           {job.title}
-                        </h2>
-                        <p className="text-[11px] text-slate-500">
-                          {job.department} · {job.location} · {job.type}
-                        </p>
-                        {job.excerpt && (
-                          <p className="text-xs text-slate-600 line-clamp-2">
-                            {job.excerpt}
-                          </p>
+                        </Link>
+                      </div>
+
+                      <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-slate-400">
+                        {job.department && <span>{job.department}</span>}
+                        {job.location && (
+                          <>
+                            <span>•</span>
+                            <span>{job.location}</span>
+                          </>
+                        )}
+                        {job.type && (
+                          <>
+                            <span>•</span>
+                            <span>{job.type}</span>
+                          </>
                         )}
                       </div>
 
-                      <div className="flex flex-col items-start gap-2 md:items-end">
-                        {job.postedAt && (
-                          <p className="text-[11px] text-slate-400">
-                            Posted{" "}
-                            {new Date(
-                              job.postedAt
-                            ).toLocaleDateString("en-GB", {
-                              day: "2-digit",
-                              month: "short",
-                              year: "numeric",
-                            })}
-                          </p>
-                        )}
-                        <span className="inline-flex items-center rounded-full bg-[#172965] px-3 py-1 text-[11px] font-medium text-white">
-                          View role
+                      {job.excerpt && (
+                        <p className="mt-2 text-xs text-slate-400">
+                          {job.excerpt}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Right side: CTA + social share */}
+                    <div className="mt-3 flex flex-col items-start gap-2 md:mt-0 md:items-end">
+                      <Link
+                        href={`/jobs/${job.slug}`}
+                        className="inline-flex items-center rounded-full bg-[#FFB703] px-4 py-1.5 text-[11px] font-medium text-slate-950 hover:bg-[#ffca3a] transition"
+                      >
+                        View role
+                        <span className="ml-1">→</span>
+                      </Link>
+
+                      {/* Social share */}
+                      <div className="flex items-center gap-3 text-[11px] text-slate-400">
+                        <span className="uppercase tracking-[0.16em] text-slate-500">
+                          Share
                         </span>
+                        <a
+                          href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(
+                            jobUrl
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:text-slate-100"
+                        >
+                          LinkedIn
+                        </a>
+                        <span className="text-slate-600">·</span>
+                        <a
+                          href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(
+                            job.title + " – via Resourcin"
+                          )}&url=${encodeURIComponent(jobUrl)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:text-slate-100"
+                        >
+                          X (Twitter)
+                        </a>
                       </div>
                     </div>
-                  </Link>
+                  </div>
                 </li>
-              ))}
-            </ul>
-          )}
-        </section>
+              );
+            })}
+          </ul>
+        )}
       </div>
     </main>
-  );
-}
-
-/**
- * Small filter pill component
- */
-
-type FilterHrefProps = {
-  q: string;
-  department?: string;
-  location?: string;
-  type?: string;
-};
-
-function buildFilterHref({ q, department, location, type }: FilterHrefProps) {
-  const params = new URLSearchParams();
-
-  if (q) params.set("q", q);
-  if (department) params.set("department", department);
-  if (location) params.set("location", location);
-  if (type) params.set("type", type);
-
-  const query = params.toString();
-  return query ? `/jobs?${query}` : "/jobs";
-}
-
-function FilterPill({
-  label,
-  isActive,
-  href,
-}: {
-  label: string;
-  isActive: boolean;
-  href: FilterHrefProps;
-}) {
-  const url = buildFilterHref(href);
-  return (
-    <Link
-      href={url}
-      className={`inline-flex items-center rounded-full border px-2.5 py-1 transition ${
-        isActive
-          ? "border-[#172965] bg-[#172965] text-white"
-          : "border-slate-200 bg-slate-50 text-slate-600 hover:border-[#172965] hover:text-[#172965]"
-      }`}
-    >
-      {label}
-    </Link>
   );
 }
