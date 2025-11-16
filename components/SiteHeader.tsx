@@ -5,94 +5,179 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import Container from "./Container";
 
-const navLinks = [
-  { href: "/", label: "Home" },
-  { href: "/candidates", label: "For Candidates" },
-  { href: "/employers", label: "For Employers" },
-  { href: "/insights", label: "Insights" },
-  { href: "/about", label: "About" },
-  { href: "/contact", label: "Contact" },
+type NavItem = {
+  name: string;
+  href: string;
+};
+
+const mainNav: NavItem[] = [
+  { name: "Home", href: "/" },
+  { name: "Jobs", href: "/jobs" },
+  { name: "Talent Network", href: "/talent-network" },
+  { name: "For Employers", href: "/employers" },
+  { name: "Insights", href: "/insights" },
+  { name: "About", href: "/about" },
+  { name: "Contact", href: "/contact" },
 ];
+
+function classNames(...classes: (string | boolean | undefined)[]) {
+  return classes.filter(Boolean).join(" ");
+}
 
 export default function SiteHeader() {
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <header className="border-b border-neutral-900/70 bg-black/80 backdrop-blur">
+    <header className="border-b border-slate-200 bg-white/80 backdrop-blur-sm sticky top-0 z-40">
       <Container>
-        <div className="flex h-16 items-center justify-between gap-4">
-          {/* Logo / brand */}
-          <Link href="/" className="text-sm font-semibold tracking-wide">
-            Resourcin
-          </Link>
+        <div className="flex items-center justify-between py-3 md:py-4">
+          {/* Logo / Brand */}
+          <div className="flex items-center gap-2">
+            <Link href="/" className="flex items-center gap-2">
+              <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-sky-500 via-emerald-500 to-amber-400 flex items-center justify-center text-xs font-semibold text-white shadow-sm">
+                R
+              </div>
+              <div className="flex flex-col leading-tight">
+                <span className="font-semibold text-slate-900">
+                  Resourcin
+                </span>
+                <span className="text-[11px] text-slate-500">
+                  Talent · EOR · Advisory
+                </span>
+              </div>
+            </Link>
+          </div>
 
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-6 text-sm">
-            {navLinks.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={
-                  pathname === item.href
-                    ? "text-emerald-300"
-                    : "text-neutral-300 hover:text-white transition"
-                }
-              >
-                {item.label}
-              </Link>
-            ))}
+            {mainNav.map((item) => {
+              const isActive =
+                item.href === "/"
+                  ? pathname === "/"
+                  : pathname.startsWith(item.href);
 
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={classNames(
+                    "transition-colors",
+                    isActive
+                      ? "text-sky-700 font-medium"
+                      : "text-slate-600 hover:text-slate-900"
+                  )}
+                >
+                  {item.name}
+                </Link>
+              );
+            })}
+          </nav>
+
+          {/* Desktop actions */}
+          <div className="hidden md:flex items-center gap-3">
             <Link
               href="/login"
-              className="rounded-full border border-emerald-400/80 px-3 py-1 text-[13px] font-medium text-emerald-200 hover:bg-emerald-500 hover:text-black transition"
+              className="text-sm text-slate-600 hover:text-slate-900"
             >
               Login
             </Link>
-          </nav>
+            <Link
+              href="/request-talent"
+              className="inline-flex items-center rounded-full border border-sky-500 bg-sky-500 px-4 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-sky-600 hover:border-sky-600 transition-colors"
+            >
+              Request Talent
+            </Link>
+          </div>
 
           {/* Mobile menu button */}
           <button
             type="button"
-            className="md:hidden inline-flex items-center justify-center rounded-full border border-neutral-800 px-3 py-1 text-xs text-neutral-200"
-            onClick={() => setOpen((prev) => !prev)}
+            className="md:hidden inline-flex items-center justify-center rounded-md border border-slate-200 p-2 text-slate-700 hover:bg-slate-50"
+            onClick={() => setMobileOpen((open) => !open)}
           >
-            Menu
+            <span className="sr-only">Open main menu</span>
+            {mobileOpen ? (
+              // X icon
+              <svg
+                className="h-5 w-5"
+                viewBox="0 0 20 20"
+                fill="none"
+                aria-hidden="true"
+              >
+                <path
+                  d="M5 5l10 10M15 5L5 15"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                />
+              </svg>
+            ) : (
+              // Hamburger
+              <svg
+                className="h-5 w-5"
+                viewBox="0 0 20 20"
+                fill="none"
+                aria-hidden="true"
+              >
+                <path
+                  d="M3 6h14M3 10h14M3 14h14"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                />
+              </svg>
+            )}
           </button>
         </div>
-      </Container>
 
-      {/* Mobile dropdown */}
-      {open && (
-        <div className="md:hidden border-t border-neutral-900 bg-black">
-          <Container>
-            <nav className="flex flex-col gap-2 py-3 text-sm">
-              {navLinks.map((item) => (
+        {/* Mobile nav panel */}
+        {mobileOpen && (
+          <div className="md:hidden pb-3 border-t border-slate-200">
+            <nav className="flex flex-col space-y-1 pt-3">
+              {mainNav.map((item) => {
+                const isActive =
+                  item.href === "/"
+                    ? pathname === "/"
+                    : pathname.startsWith(item.href);
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMobileOpen(false)}
+                    className={classNames(
+                      "px-2 py-1.5 text-sm rounded-md",
+                      isActive
+                        ? "bg-sky-50 text-sky-700 font-medium"
+                        : "text-slate-700 hover:bg-slate-50"
+                    )}
+                  >
+                    {item.name}
+                  </Link>
+                );
+              })}
+
+              <div className="mt-2 flex items-center gap-2 px-2">
                 <Link
-                  key={item.href}
-                  href={item.href}
-                  className={
-                    pathname === item.href
-                      ? "text-emerald-300"
-                      : "text-neutral-300"
-                  }
-                  onClick={() => setOpen(false)}
+                  href="/login"
+                  onClick={() => setMobileOpen(false)}
+                  className="flex-1 text-sm text-slate-700 py-1.5 text-center rounded-md border border-slate-200 hover:bg-slate-50"
                 >
-                  {item.label}
+                  Login
                 </Link>
-              ))}
-
-              <Link
-                href="/login"
-                className="mt-2 inline-flex items-center justify-center rounded-full border border-emerald-400/80 px-3 py-1 text-[13px] font-medium text-emerald-200"
-                onClick={() => setOpen(false)}
-              >
-                Login
-              </Link>
+                <Link
+                  href="/request-talent"
+                  onClick={() => setMobileOpen(false)}
+                  className="flex-1 text-sm text-white py-1.5 text-center rounded-md bg-sky-500 hover:bg-sky-600"
+                >
+                  Request Talent
+                </Link>
+              </div>
             </nav>
-          </Container>
-        </div>
-      )}
+          </div>
+        )}
+      </Container>
     </header>
   );
 }
