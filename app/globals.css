@@ -3,8 +3,11 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: light;
+::root {
+  --rcn-blue: #172965;
+  --rcn-yellow: #FFC000;
+  --rcn-dark-green: #306B34;
+  --rcn-light-green: #64C247;
 }
 
 html { scroll-behavior: smooth; }
